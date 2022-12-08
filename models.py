@@ -379,9 +379,12 @@ class Discriminator_slices(nn.Module):
             # nn.ZeroPad3d((1, 0, 1, 0)),
         )
         self.final = nn.Conv2d(1025, 1, 4, padding=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, img_input):
 
         intermediate = self.model(img_input)
         pad = nn.functional.pad(intermediate, pad=(1,0,1,0,1,0))
-        return self.final(pad)
+        pad = self.final(pad)
+        result = self.sigmoid(pad)
+        return result

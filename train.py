@@ -21,11 +21,11 @@ def train():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-    parser.add_argument("--n_epochs", type=int, default=210, help="number of epochs of training")
+    parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
-    parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-4
-    parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-4
+    parser.add_argument("--glr", type=float, default=2e-6, help="adam: generator learning rate") # Default : 2e-4
+    parser.add_argument("--dlr", type=float, default=2e-6, help="adam: discriminator learning rate") # Default : 2e-4
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
@@ -38,20 +38,24 @@ def train():
     parser.add_argument("--d_threshold", type=int, default=.8, help="discriminator threshold")
     parser.add_argument("--threshold", type=int, default=-1, help="threshold during sampling, -1: No thresholding")
     parser.add_argument(
-        "--sample_interval", type=int, default=200, help="interval between sampling of images from generators"
+        "--sample_interval", type=int, default=400, help="interval between sampling of images from generators"
     )
-    parser.add_argument("--checkpoint_interval", type=int, default=200, help="interval between model checkpoints")
+    parser.add_argument("--checkpoint_interval", type=int, default=400, help="interval between model checkpoints")
     opt = parser.parse_args()
     print(opt)
 
-    os.makedirs("volumes4/%s" % opt.dataset_name, exist_ok=True)
-    os.makedirs("saved_models4/%s" % opt.dataset_name, exist_ok=True)
+    volume_name = "volumes4"
+    model_name = "saved_models4"
+
+    os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
+    os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
 
     cuda = True if torch.cuda.is_available() else False
 
     # Loss functions
     criterion_GAN = torch.nn.MSELoss()
     L1_loss = torch.nn.L1Loss()
+    L2_loss = torch.nn.MSELoss()
     criterion_voxelwise = diceloss()
 
     # Loss weight of L1 voxel-wise loss between translated image and real image
@@ -60,7 +64,7 @@ def train():
     # Calculate output of image discriminator (PatchGAN)
     patch = (1, opt.img_height // 2 ** 4, opt.img_width // 2 ** 4, opt.img_depth // 2 ** 4)
 
-    use_ctsgan = False
+    use_ctsgan = True
 
     # Initialize generator and discriminator
     generator = GeneratorUNet()
@@ -80,11 +84,11 @@ def train():
 
     if opt.epoch != 0:
         # Load pretrained models
-        generator.load_state_dict(torch.load("saved_models4/%s/generator_%d.pth" % (opt.dataset_name, opt.epoch)))
-        discriminator_volume.load_state_dict(torch.load("saved_models4/%s/discriminator_volume_%d.pth" % (opt.dataset_name, opt.epoch)))
+        generator.load_state_dict(torch.load("%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
+        discriminator_volume.load_state_dict(torch.load("%s/%s/discriminator_volume_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
         if use_ctsgan:
-            discriminator_slab.load_state_dict(torch.load("saved_models4/%s/discriminator_slab_%d.pth" % (opt.dataset_name, opt.epoch)))
-            discriminator_slices.load_state_dict(torch.load("saved_models4/%s/discriminator_slice_%d.pth" % (opt.dataset_name, opt.epoch)))
+            discriminator_slab.load_state_dict(torch.load("%s/%s/discriminator_slab_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
+            discriminator_slices.load_state_dict(torch.load("%s/%s/discriminator_slice_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
     else:
         # Initialize weights
         generator.apply(weights_init_normal)
@@ -121,21 +125,15 @@ def train():
 
     def sample_voxel_volumes(epoch, store):
 
-        for j, batch_test in enumerate(val_dataloader):
+        total_volume_num = 18
+        for j in range(0, total_volume_num):
 
             # Model inputs
             volume_noise = torch.randn(262144)
             volume_noise = volume_noise.reshape(1, 512, 8, 8, 8)
             volume_noise = volume_noise.cuda()
             fake_volume = generator(volume_noise)
-
-            '''
-            real_volume = Variable(batch_test["B"].unsqueeze_(1).type(Tensor))
-            real_volume = real_volume / 255.
-            real_volume_max = real_volume.max()
-            real_volume_min = real_volume.min()
-            real_volume = (real_volume - real_volume_min) / (real_volume_max - real_volume_min)
-            '''
+            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
 
             # Print log
             sys.stdout.write(
@@ -144,17 +142,15 @@ def train():
                     epoch,
                     opt.n_epochs,
                     j,
-                    len(val_dataloader),
+                    total_volume_num,
                 )
             )
 
             # convert to numpy arrays
             if store is True:
-                # real_A = real_A.cpu().detach().numpy()
-                # real_volume = real_volume.cpu().detach().numpy()
                 fake_volume = fake_volume.cpu().detach().numpy()
 
-                store_folder = "volumes4/%s/epoch_%s_" % (opt.dataset_name, epoch)
+                store_folder = "%s/%s/epoch_%s_" % (volume_name, opt.dataset_name, epoch)
 
                 # np.save(store_folder + 'real_V_' + str(j).zfill(2) + '.npy', real_volume)
                 np.save(store_folder + 'fake_V_' + str(j).zfill(2) + '.npy', fake_volume)
@@ -171,7 +167,7 @@ def train():
         for i, batch in enumerate(dataloader):
 
             # Model inputs
-            volume_noise = torch.randn(262144)
+            volume_noise = torch.rand(262144)
             volume_noise = volume_noise.reshape(1, 512, 8, 8, 8)
             volume_noise = volume_noise.cuda()
 
@@ -190,6 +186,8 @@ def train():
             # ---------------------
             # Real loss
             fake_volume = generator(volume_noise)
+            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
+
             pred_real_volume = discriminator_volume(real_volume)
             pred_fake_volume = discriminator_volume(fake_volume.detach())
 
@@ -205,15 +203,15 @@ def train():
                 slab_position = torch.randint(int(slab_size / 2), 127 - int(slab_size / 2), (4, ))
 
                 slab_range = torch.zeros(4, 2)
-                for i in range(0, 4):
-                    slab_range[i, 0] = slab_position[i] - int(slab_size / 2)
-                    slab_range[i, 1] = slab_position[i] + int(slab_size / 2)
+                for j in range(0, 4):
+                    slab_range[j, 0] = slab_position[j] - int(slab_size / 2)
+                    slab_range[j, 1] = slab_position[j] + int(slab_size / 2)
 
                 real_volume_slab = []
                 fake_volume_slab = []
-                for i in range(0, 4):
-                    real_volume_slab.append(real_volume[0, 0, :, :, int(slab_range[i, 0]):int(slab_range[i, 1])])
-                    fake_volume_slab.append(fake_volume[0, 0, :, :, int(slab_range[i, 0]):int(slab_range[i, 1])])
+                for j in range(0, 4):
+                    real_volume_slab.append(real_volume[0, 0, :, :, int(slab_range[j, 0]):int(slab_range[j, 1])])
+                    fake_volume_slab.append(fake_volume[0, 0, :, :, int(slab_range[j, 0]):int(slab_range[j, 1])])
 
                 real_volume_slab_tot = torch.cat([real_volume_slab[0], real_volume_slab[1], real_volume_slab[2],
                                                   real_volume_slab[3]], dim=2).reshape(1, -1, 128, 128)
@@ -234,15 +232,15 @@ def train():
                 slices_position = torch.randint(1, 126, (28,))
 
                 slices_range = torch.zeros(28, 2)
-                for i in range(0, 28):
-                    slices_range[i, 0] = slices_position[i] - 1
-                    slices_range[i, 1] = slices_position[i] + 2
+                for j in range(0, 28):
+                    slices_range[j, 0] = slices_position[j] - 1
+                    slices_range[j, 1] = slices_position[j] + 2
 
                 real_volume_slices = []
                 fake_volume_slices = []
-                for i in range(0, 28):
-                    real_volume_slices.append(real_volume[0, 0, :, :, int(slices_range[i, 0]):int(slices_range[i, 1])])
-                    fake_volume_slices.append(fake_volume[0, 0, :, :, int(slices_range[i, 0]):int(slices_range[i, 1])])
+                for j in range(0, 28):
+                    real_volume_slices.append(real_volume[0, 0, :, :, int(slices_range[j, 0]):int(slices_range[j, 1])])
+                    fake_volume_slices.append(fake_volume[0, 0, :, :, int(slices_range[j, 0]):int(slices_range[j, 1])])
 
                 real_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
                 fake_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
@@ -259,6 +257,8 @@ def train():
                 D_loss = DV_loss + DSLB_loss + DSLC_loss
             else:
                 D_loss = DV_loss
+
+            # D_loss = 5. * D_loss
 
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -303,7 +303,7 @@ def train():
             GAN_loss = criterion_GAN(pred_fake_volume, valid)
 
             # Regularization Factors (L1, UQI, IoU)
-            loss_L1 = L1_loss(fake_volume, real_volume)
+            loss_dist = L1_loss(fake_volume, real_volume)
             loss_uqi = 1. - ef.uqi_volume(fake_volume.cpu().detach().numpy(), real_volume.cpu().detach().numpy(), normalize=True)
 
             # IoU per sample
@@ -319,7 +319,7 @@ def train():
             iou_loss = sum(sample_iou) / len(sample_iou)
             iou_loss = 1. - iou_loss
 
-            G_loss = GAN_loss + 10. * loss_L1 # + 3.3 * iou_loss + 3.3 * loss_uqi
+            G_loss = GAN_loss + 33. * loss_dist + 33. * iou_loss + 33. * loss_uqi
 
             G_loss.backward()
             optimizer_G.step()
@@ -337,29 +337,32 @@ def train():
 
             # Print log
             sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
+                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
                 % (
                     epoch,
                     opt.n_epochs,
                     i,
                     len(dataloader),
                     G_loss.item(),
+                    GAN_loss.item(),
+                    loss_dist.item(),
+                    iou_loss,
+                    loss_uqi.item(),
                     D_loss.item(),
                     d_total_acu,
                     discriminator_update,
                     time_left,
                 )
             )
-
             discriminator_update = 'False'
 
         if opt.checkpoint_interval != -1 and epoch % opt.checkpoint_interval == 0:
             # Save model checkpoints
-            torch.save(generator.state_dict(), "saved_models4/%s/generator_%d.pth" % (opt.dataset_name, epoch))
-            torch.save(discriminator_volume.state_dict(), "saved_models4/%s/discriminator_volume_%d.pth" % (opt.dataset_name, epoch))
+            torch.save(generator.state_dict(), "%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, epoch))
+            torch.save(discriminator_volume.state_dict(), "%s/%s/discriminator_volume_%d.pth" % (model_name, opt.dataset_name, epoch))
             if use_ctsgan:
-                torch.save(discriminator_slab.state_dict(), "saved_models4/%s/discriminator_slab_%d.pth" % (opt.dataset_name, epoch))
-                torch.save(discriminator_slices.state_dict(), "saved_models4/%s/discriminator_slice_%d.pth" % (opt.dataset_name, epoch))
+                torch.save(discriminator_slab.state_dict(), "%s/%s/discriminator_slab_%d.pth" % (model_name, opt.dataset_name, epoch))
+                torch.save(discriminator_slices.state_dict(), "%s/%s/discriminator_slice_%d.pth" % (model_name, opt.dataset_name, epoch))
 
         print(' *****training processed*****')
 
@@ -376,5 +379,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
     train()
