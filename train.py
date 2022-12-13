@@ -4,6 +4,7 @@ import numpy as np
 import time
 import datetime
 import sys
+from enum import Enum
 
 import evaluation_factor as ef
 
@@ -17,11 +18,17 @@ from dice_loss import diceloss
 
 import torch
 
+
 def train():
+
+    class LOSS_DEC(Enum):
+        NOT_USE = 1
+        STEP = 2
+        SMOOTH = 3
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-    parser.add_argument("--n_epochs", type=int, default=610, help="number of epochs of training")
+    parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
@@ -48,8 +55,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes2"
-    model_name = "saved_models2"
+    volume_name = "volumes4"
+    model_name = "saved_models4"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -177,12 +184,14 @@ def train():
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
 
         # Optimizers decaying 2
+        '''
         if epoch == 400:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay2, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
             if use_ctsgan:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
+                '''
 
         for i, batch in enumerate(dataloader):
 
@@ -278,7 +287,7 @@ def train():
             else:
                 D_loss = DV_loss
 
-            # D_loss = 5. * D_loss
+            D_loss = 5. * D_loss
 
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -339,7 +348,30 @@ def train():
             iou_loss = sum(sample_iou) / len(sample_iou)
             iou_loss = 1. - iou_loss
 
-            G_loss = GAN_loss + 33. * loss_dist + 33. * iou_loss + 33. * loss_uqi
+            weight_recon = 11.
+            loss_dec_state = LOSS_DEC.SMOOTH
+            if loss_dec_state is LOSS_DEC.NOT_USE:
+                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+            elif loss_dec_state is LOSS_DEC.STEP:
+                step_epoch = 10.
+                total_level = round(opt.n_epochs / step_epoch)
+                cur_level = round(epoch / step_epoch)
+                dec_factor = weight_recon / total_level * cur_level
+                weight_recon = weight_recon - dec_factor
+                if weight_recon > 0:
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+                else:
+                    G_loss = GAN_loss
+            elif loss_dec_state is LOSS_DEC.SMOOTH:
+                dec_factor = weight_recon / opt.n_epochs * epoch
+                weight_recon = weight_recon - dec_factor
+                if weight_recon > 0:
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+                else:
+                    G_loss = GAN_loss
+            else:
+                print('Error Occurred : Decrement State is not defined')
+                exit(-1)
 
             G_loss.backward()
             optimizer_G.step()
@@ -357,7 +389,7 @@ def train():
 
             # Print log
             sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
+                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
                 % (
                     epoch,
                     opt.n_epochs,
@@ -367,6 +399,7 @@ def train():
                     GAN_loss.item(),
                     loss_dist.item(),
                     iou_loss,
+                    weight_recon,
                     loss_uqi.item(),
                     D_loss.item(),
                     d_total_acu,
@@ -399,5 +432,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
     train()

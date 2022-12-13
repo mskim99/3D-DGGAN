@@ -1,0 +1,8 @@
+/home/jionkim/workspace/CT_VSGAN/evaluation_GAN.py:19: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at  ../torch/csrc/utils/tensor_new.cpp:201.)
+  fake_volumes = torch.Tensor(fake_volumes)
+/home/jionkim/anaconda3/envs/cv/lib/python3.6/site-packages/torch/nn/functional.py:3635: UserWarning: Default upsampling behavior when mode=bilinear is changed to align_corners=False since 0.4.0. Please specify align_corners=True if the old behavior is desired. See the documentation of nn.Upsample for details.
+  "See the documentation of nn.Upsample for details.".format(mode)
+/home/jionkim/workspace/CT_VSGAN/inception_score.py:44: UserWarning: Implicit dimension choice for softmax has been deprecated. Change the call to include dim=X as an argument.
+  return F.softmax(x).data.cpu().numpy()
+(1.501085371358959, 0.0)
+-4.9866999418668456e-11
