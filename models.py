@@ -245,6 +245,34 @@ class MSRB(nn.Module):
         output += x
         return output
 
+class EncodeInput(nn.Module):
+    def __init__(self, in_channels=1, out_channels=1):
+        super(EncodeInput, self).__init__()
+
+        self.down1 = UNetDown(in_channels, 64, normalize=False)
+        self.msrb = MSRB(64)
+        self.down2 = UNetDown(64, 128)
+        self.down3 = UNetDown(128, 256)
+        self.down4 = UNetDown(256, 512)
+
+        self.lffb = LFFB(64)
+
+    def forward(self, x):
+        # U-Net generator with skip connections from encoder to decoder
+        # print(x.shape)
+        d1 = self.down1(x)
+        # print(d1.shape)
+        # d1_l = self.lffb(d1)
+        # print(d1_l.shape)
+        d2 = self.down2(d1)
+        # print(d2.shape)
+        d3 = self.down3(d2)
+        # print(d3.shape)
+        d4 = self.down4(d3)
+        # print(d4.shape)
+
+        return d4
+
 
 class GeneratorUNet(nn.Module):
     def __init__(self, in_channels=1, out_channels=1):

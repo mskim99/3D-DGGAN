@@ -28,7 +28,7 @@ def train():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-    parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
+    parser.add_argument("--n_epochs", type=int, default=610, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
@@ -78,6 +78,7 @@ def train():
     use_ctsgan = True
 
     # Initialize generator and discriminator
+    encoder = EncodeInput()
     generator = GeneratorUNet()
     discriminator_volume = Discriminator_volume()
     if use_ctsgan:
@@ -85,6 +86,7 @@ def train():
         discriminator_slices = Discriminator_slices()
 
     if cuda:
+        encoder = encoder.cuda()
         generator = generator.cuda()
         discriminator_volume = discriminator_volume.cuda()
         if use_ctsgan:
@@ -175,6 +177,7 @@ def train():
     slab_size = 28
     for epoch in range(opt.epoch, opt.n_epochs):
 
+        '''
         # Optimizers decaying
         if epoch == 200:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay, betas=(opt.b1, opt.b2))
@@ -184,7 +187,6 @@ def train():
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
 
         # Optimizers decaying 2
-        '''
         if epoch == 400:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay2, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
@@ -200,6 +202,17 @@ def train():
             volume_noise = volume_noise.reshape(1, 512, 8, 8, 8)
             volume_noise = volume_noise.cuda()
 
+            # input_volume = volume_noise
+
+            ref_volume = Variable(batch["A"].unsqueeze_(1).type(Tensor))
+            ref_volume = ref_volume / 255.
+            ref_volume_max = ref_volume.max()
+            ref_volume_min = ref_volume.min()
+            ref_volume = (ref_volume - ref_volume_min) / (ref_volume_max - ref_volume_min)
+
+            ref_code = encoder(ref_volume)
+            input_volume = 0.5 * volume_noise + 0.5 * ref_code
+
             # Adversarial ground truths
             valid = torch.ones((volume_noise.size(0), 1), requires_grad=False).cuda()
             fake = torch.zeros((volume_noise.size(0), 1), requires_grad=False).cuda()
@@ -214,8 +227,13 @@ def train():
             #  Train Discriminator, only update every disc_update batches
             # ---------------------
             # Real loss
-            fake_volume = generator(volume_noise)
+            fake_volume = generator(input_volume)
             fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
+
+            real_volume_decode = generator(ref_code)
+            real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
+
+            generator_loss = L1_loss(real_volume_decode, real_volume)
 
             pred_real_volume = discriminator_volume(real_volume)
             pred_fake_volume = discriminator_volume(fake_volume.detach())
@@ -287,7 +305,7 @@ def train():
             else:
                 D_loss = DV_loss
 
-            D_loss = 5. * D_loss
+            D_loss = 10. * D_loss
 
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -327,7 +345,7 @@ def train():
                 optimizer_DSC.zero_grad()
             optimizer_G.zero_grad()
 
-            fake_volume = generator(volume_noise)
+            fake_volume = generator(input_volume)
             pred_fake_volume = discriminator_volume(fake_volume)
             GAN_loss = criterion_GAN(pred_fake_volume, valid)
 
@@ -348,25 +366,27 @@ def train():
             iou_loss = sum(sample_iou) / len(sample_iou)
             iou_loss = 1. - iou_loss
 
-            weight_recon = 11.
+            weight_recon = 25.
+            weight_recon_min = 0.
             loss_dec_state = LOSS_DEC.SMOOTH
+            # iou_loss = iou_loss - 0.5
             if loss_dec_state is LOSS_DEC.NOT_USE:
-                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
             elif loss_dec_state is LOSS_DEC.STEP:
                 step_epoch = 10.
                 total_level = round(opt.n_epochs / step_epoch)
                 cur_level = round(epoch / step_epoch)
                 dec_factor = weight_recon / total_level * cur_level
                 weight_recon = weight_recon - dec_factor
-                if weight_recon > 0:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+                if weight_recon > weight_recon_min:
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
                 else:
                     G_loss = GAN_loss
             elif loss_dec_state is LOSS_DEC.SMOOTH:
                 dec_factor = weight_recon / opt.n_epochs * epoch
                 weight_recon = weight_recon - dec_factor
-                if weight_recon > 0:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * iou_loss + weight_recon * loss_uqi
+                if weight_recon > weight_recon_min:
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
                 else:
                     G_loss = GAN_loss
             else:
@@ -389,7 +409,7 @@ def train():
 
             # Print log
             sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
+                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, gen: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
                 % (
                     epoch,
                     opt.n_epochs,
@@ -399,8 +419,9 @@ def train():
                     GAN_loss.item(),
                     loss_dist.item(),
                     iou_loss,
-                    weight_recon,
                     loss_uqi.item(),
+                    generator_loss.item(),
+                    weight_recon,
                     D_loss.item(),
                     d_total_acu,
                     discriminator_update,
