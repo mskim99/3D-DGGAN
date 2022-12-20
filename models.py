@@ -402,7 +402,7 @@ class Discriminator_slab(nn.Module):
 
 
 class Discriminator_slices(nn.Module):
-    def __init__(self, in_channels=250):
+    def __init__(self, in_channels=112):
         super(Discriminator_slices, self).__init__()
 
         def discriminator_block(in_filters, out_filters, normalization=True):

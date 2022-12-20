@@ -33,10 +33,10 @@ def train():
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
     parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
-    parser.add_argument("--glr_decay", type=float, default=2e-6, help="adam: generator learning rate (decaying)")
-    parser.add_argument("--dlr_decay", type=float, default=2e-6, help="adam: discriminator learning rate (decaying)")
-    parser.add_argument("--glr_decay2", type=float, default=2e-7, help="adam: generator learning rate (decaying2)")
-    parser.add_argument("--dlr_decay2", type=float, default=2e-7, help="adam: discriminator learning rate (decaying2)")
+    parser.add_argument("--glr_decay", type=float, default=6e-6, help="adam: generator learning rate (decaying)")
+    parser.add_argument("--dlr_decay", type=float, default=6e-6, help="adam: discriminator learning rate (decaying)")
+    parser.add_argument("--glr_decay2", type=float, default=2e-6, help="adam: generator learning rate (decaying2)")
+    parser.add_argument("--dlr_decay2", type=float, default=2e-6, help="adam: discriminator learning rate (decaying2)")
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
@@ -55,8 +55,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes4"
-    model_name = "saved_models4"
+    volume_name = "volumes2"
+    model_name = "saved_models2"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -75,8 +75,8 @@ def train():
     # Calculate output of image discriminator (PatchGAN)
     patch = (1, opt.img_height // 2 ** 4, opt.img_width // 2 ** 4, opt.img_depth // 2 ** 4)
 
-    use_ctsgan = False
-    use_ctsgan_all = True
+    use_ctsgan = True
+    use_ctsgan_all = False
 
     # Initialize generator and discriminator
     encoder = EncodeInput()
@@ -139,7 +139,7 @@ def train():
 
     def sample_voxel_volumes(epoch, store):
 
-        total_volume_num = 18
+        total_volume_num = 85
         for j in range(0, total_volume_num):
 
             # Model inputs
@@ -179,7 +179,6 @@ def train():
     slice_num = 56
     for epoch in range(opt.epoch, opt.n_epochs):
 
-        '''
         # Optimizers decaying
         if epoch == 200:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay, betas=(opt.b1, opt.b2))
@@ -195,7 +194,6 @@ def train():
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
-                '''
 
         for i, batch in enumerate(dataloader):
 
@@ -521,5 +519,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     train()
