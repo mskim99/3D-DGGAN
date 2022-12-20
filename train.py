@@ -75,13 +75,14 @@ def train():
     # Calculate output of image discriminator (PatchGAN)
     patch = (1, opt.img_height // 2 ** 4, opt.img_width // 2 ** 4, opt.img_depth // 2 ** 4)
 
-    use_ctsgan = True
+    use_ctsgan = False
+    use_ctsgan_all = True
 
     # Initialize generator and discriminator
     encoder = EncodeInput()
     generator = GeneratorUNet()
     discriminator_volume = Discriminator_volume()
-    if use_ctsgan:
+    if use_ctsgan or use_ctsgan_all:
         discriminator_slab = Discriminator_slab()
         discriminator_slices = Discriminator_slices()
 
@@ -89,7 +90,7 @@ def train():
         encoder = encoder.cuda()
         generator = generator.cuda()
         discriminator_volume = discriminator_volume.cuda()
-        if use_ctsgan:
+        if use_ctsgan or use_ctsgan_all:
             discriminator_slab = discriminator_slab.cuda()
             discriminator_slices = discriminator_slices.cuda()
         criterion_GAN.cuda()
@@ -99,21 +100,21 @@ def train():
         # Load pretrained models
         generator.load_state_dict(torch.load("%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
         discriminator_volume.load_state_dict(torch.load("%s/%s/discriminator_volume_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
-        if use_ctsgan:
+        if use_ctsgan or use_ctsgan_all:
             discriminator_slab.load_state_dict(torch.load("%s/%s/discriminator_slab_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
             discriminator_slices.load_state_dict(torch.load("%s/%s/discriminator_slice_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
     else:
         # Initialize weights
         generator.apply(weights_init_normal)
         discriminator_volume.apply(weights_init_normal)
-        if use_ctsgan:
+        if use_ctsgan or use_ctsgan_all:
             discriminator_slab.apply(weights_init_normal)
             discriminator_slices.apply(weights_init_normal)
 
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr, betas=(opt.b1, opt.b2))
     optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
-    if use_ctsgan:
+    if use_ctsgan or use_ctsgan_all:
         optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
         optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
 
@@ -175,6 +176,7 @@ def train():
     prev_time = time.time()
     discriminator_update = 'False'
     slab_size = 28
+    slice_num = 56
     for epoch in range(opt.epoch, opt.n_epochs):
 
         '''
@@ -182,7 +184,7 @@ def train():
         if epoch == 200:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
-            if use_ctsgan:
+            if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
 
@@ -190,7 +192,7 @@ def train():
         if epoch == 400:
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay2, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
-            if use_ctsgan:
+            if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 '''
@@ -211,7 +213,8 @@ def train():
             ref_volume = (ref_volume - ref_volume_min) / (ref_volume_max - ref_volume_min)
 
             ref_code = encoder(ref_volume)
-            input_volume = 0.5 * volume_noise + 0.5 * ref_code
+            # input_volume = 0.125 * volume_noise + 0.875 * ref_code
+            input_volume = ref_code
 
             # Adversarial ground truths
             valid = torch.ones((volume_noise.size(0), 1), requires_grad=False).cuda()
@@ -276,18 +279,71 @@ def train():
 
 
                 # Extract slices from volume
-                slices_position = torch.randint(1, 126, (28,))
+                slices_position = torch.randint(1, 126, (slice_num,))
 
-                slices_range = torch.zeros(28, 2)
-                for j in range(0, 28):
+                slices_range = torch.zeros(slice_num, 2)
+                for j in range(0, slice_num):
                     slices_range[j, 0] = slices_position[j] - 1
-                    slices_range[j, 1] = slices_position[j] + 2
+                    slices_range[j, 1] = slices_position[j] + 1
 
                 real_volume_slices = []
                 fake_volume_slices = []
-                for j in range(0, 28):
+                for j in range(0, slice_num):
                     real_volume_slices.append(real_volume[0, 0, :, :, int(slices_range[j, 0]):int(slices_range[j, 1])])
                     fake_volume_slices.append(fake_volume[0, 0, :, :, int(slices_range[j, 0]):int(slices_range[j, 1])])
+
+                real_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
+                fake_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
+
+                pred_real_slices = discriminator_slices(real_volume_slices_tot.detach())
+                pred_fake_slices = discriminator_slices(fake_volume_slices_tot.detach())
+
+                # Calculate Slice Discriminator Loss
+                DV_loss_real_slices = criterion_GAN(pred_real_slices, valid)
+                DV_loss_fake_slices = criterion_GAN(pred_fake_slices, fake)
+
+                DSLC_loss = 0.5 * (DV_loss_real_slices + DV_loss_fake_slices)
+
+                D_loss = DV_loss + DSLB_loss + DSLC_loss
+
+            elif use_ctsgan_all:
+                # Extract slab from volume
+                slab_range = torch.zeros(127 - 2 * int(slab_size / 2) + 1, 2)
+                for j in range(int(slab_size / 2), 127 - int(slab_size / 2) + 1):
+                    slab_range[j-int(slab_size / 2), 0] = j - int(slab_size / 2)
+                    slab_range[j-int(slab_size / 2), 1] = j + int(slab_size / 2)
+
+                real_volume_slab = []
+                fake_volume_slab = []
+                for j in range(int(slab_size / 2), 127 - int(slab_size / 2) + 1):
+                    real_volume_slab.append(real_volume[0, 0, :, :, int(slab_range[j-int(slab_size / 2), 0]):int(slab_range[j-int(slab_size / 2), 1])])
+                    fake_volume_slab.append(fake_volume[0, 0, :, :, int(slab_range[j-int(slab_size / 2), 0]):int(slab_range[j-int(slab_size / 2), 1])])
+
+                real_volume_slab_tot = torch.cat([real_volume_slab[0], real_volume_slab[1], real_volume_slab[2],
+                                                  real_volume_slab[3]], dim=2).reshape(1, -1, 128, 128)
+                fake_volume_slab_tot = torch.cat([fake_volume_slab[0], fake_volume_slab[1], fake_volume_slab[2],
+                                                  fake_volume_slab[3]], dim=2).reshape(1, -1, 128, 128)
+
+                pred_real_slab = discriminator_slab(real_volume_slab_tot.detach())
+                pred_fake_slab = discriminator_slab(fake_volume_slab_tot.detach())
+
+                # Calculate Slab Discriminator Loss
+                DV_loss_real_slab = criterion_GAN(pred_real_slab, valid)
+                DV_loss_fake_slab = criterion_GAN(pred_fake_slab, fake)
+
+                DSLB_loss = 0.5 * (DV_loss_real_slab + DV_loss_fake_slab)
+
+                # Extract slices from volume
+                slices_range = torch.zeros(126, 2)
+                for j in range(1, 126):
+                    slices_range[j-1, 0] = int(j) - 1
+                    slices_range[j-1, 1] = int(j) + 1
+
+                real_volume_slices = []
+                fake_volume_slices = []
+                for j in range(1, 126):
+                    real_volume_slices.append(real_volume[0, 0, :, :, int(slices_range[j-1, 0]):int(slices_range[j-1, 1])])
+                    fake_volume_slices.append(fake_volume[0, 0, :, :, int(slices_range[j-1, 0]):int(slices_range[j-1, 1])])
 
                 real_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
                 fake_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
@@ -305,7 +361,7 @@ def train():
             else:
                 D_loss = DV_loss
 
-            D_loss = 10. * D_loss
+            # D_loss = 10. * D_loss
 
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -349,6 +405,17 @@ def train():
             pred_fake_volume = discriminator_volume(fake_volume)
             GAN_loss = criterion_GAN(pred_fake_volume, valid)
 
+            cont_loss = 0.0
+            for j in range (1, 126):
+                fake_volume_slice = fake_volume[0, 0, :, :, j]
+                fake_volume_slice_after = fake_volume[0, 0, :, :, j+1]
+                real_volume_slice = real_volume[0, 0, :, :, j]
+                real_volume_slice_after = real_volume[0, 0, :, :, j+1]
+                fvs_diff = L1_loss(fake_volume_slice, fake_volume_slice_after)
+                rvs_diff = L1_loss(real_volume_slice, real_volume_slice_after)
+                cont_loss = cont_loss + torch.abs(fvs_diff - rvs_diff)
+            cont_loss = cont_loss / 126.
+
             # Regularization Factors (L1, UQI, IoU)
             loss_dist = L1_loss(fake_volume, real_volume)
             loss_uqi = 1. - ef.uqi_volume(fake_volume.cpu().detach().numpy(), real_volume.cpu().detach().numpy(), normalize=True)
@@ -366,12 +433,12 @@ def train():
             iou_loss = sum(sample_iou) / len(sample_iou)
             iou_loss = 1. - iou_loss
 
-            weight_recon = 25.
+            weight_recon = 1.
             weight_recon_min = 0.
-            loss_dec_state = LOSS_DEC.SMOOTH
+            loss_dec_state = LOSS_DEC.NOT_USE
             # iou_loss = iou_loss - 0.5
             if loss_dec_state is LOSS_DEC.NOT_USE:
-                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
+                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * generator_loss + weight_recon * cont_loss
             elif loss_dec_state is LOSS_DEC.STEP:
                 step_epoch = 10.
                 total_level = round(opt.n_epochs / step_epoch)
@@ -379,14 +446,14 @@ def train():
                 dec_factor = weight_recon / total_level * cur_level
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * generator_loss + weight_recon * cont_loss
                 else:
                     G_loss = GAN_loss
             elif loss_dec_state is LOSS_DEC.SMOOTH:
                 dec_factor = weight_recon / opt.n_epochs * epoch
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * iou_loss + weight_recon * generator_loss
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi+ weight_recon * generator_loss + weight_recon * cont_loss
                 else:
                     G_loss = GAN_loss
             else:
@@ -409,7 +476,7 @@ def train():
 
             # Print log
             sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, gen: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
+                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, gen: %f, cont: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
                 % (
                     epoch,
                     opt.n_epochs,
@@ -421,6 +488,7 @@ def train():
                     iou_loss,
                     loss_uqi.item(),
                     generator_loss.item(),
+                    cont_loss.item(),
                     weight_recon,
                     D_loss.item(),
                     d_total_acu,
@@ -453,5 +521,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     train()

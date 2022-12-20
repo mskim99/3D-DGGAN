@@ -255,6 +255,12 @@ class EncodeInput(nn.Module):
         self.down3 = UNetDown(128, 256)
         self.down4 = UNetDown(256, 512)
 
+        '''
+        self.mid1 = UNetMid(1024, 512, dropout=0.2)
+        self.mid2 = UNetMid(1024, 512, dropout=0.2)
+        self.mid3 = UNetMid(1024, 512, dropout=0.2)
+        '''
+
         self.lffb = LFFB(64)
 
     def forward(self, x):
@@ -270,8 +276,16 @@ class EncodeInput(nn.Module):
         # print(d3.shape)
         d4 = self.down4(d3)
         # print(d4.shape)
+        '''
+        m1 = self.mid1(d4, d4)
+        # print(m1.shape)
+        m2 = self.mid2(m1, m1)
+        # print(m2.shape)
+        m3 = self.mid3(m2, m2)
+        '''
 
         return d4
+        # return m3
 
 
 class GeneratorUNet(nn.Module):
@@ -388,7 +402,7 @@ class Discriminator_slab(nn.Module):
 
 
 class Discriminator_slices(nn.Module):
-    def __init__(self, in_channels=84):
+    def __init__(self, in_channels=250):
         super(Discriminator_slices, self).__init__()
 
         def discriminator_block(in_filters, out_filters, normalization=True):
