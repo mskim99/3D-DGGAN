@@ -11,7 +11,7 @@ fake_volumes = []
 real_volumes = []
 
 for i in range (0, 18):
-    fake_volume = np.load('./comparison/221220_5_log_loss_vol_slab_slice_G_recon_1_enc_1_add_layer_no_IoU_sigmoid_clamp_epoch_610_slices_56/epoch_600_fake_V_' + str(i).zfill(2) + '.npy')
+    fake_volume = np.load('./comparison/221222_1_log_loss_vol_slab_slice_G_recon_1_enc_1_no_IoU_cont_sigmoid_clamp_epoch_610/epoch_600_fake_V_' + str(i).zfill(2) + '.npy')
     real_volume = np.load('./comparison/real_data/real_V_' + str(i).zfill(2) + '.npy')
     fake_volumes.append(fake_volume)
     real_volumes.append(real_volume)

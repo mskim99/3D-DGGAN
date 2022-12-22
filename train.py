@@ -31,15 +31,18 @@ def train():
     parser.add_argument("--n_epochs", type=int, default=610, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
+    parser.add_argument("--elr", type=float, default=2e-4, help="adam: encoder learning rate") # Default : 2e-5
     parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
     parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
+    parser.add_argument("--elr_decay", type=float, default=6e-6, help="adam: encoder learning rate (decaying)")
     parser.add_argument("--glr_decay", type=float, default=6e-6, help="adam: generator learning rate (decaying)")
     parser.add_argument("--dlr_decay", type=float, default=6e-6, help="adam: discriminator learning rate (decaying)")
+    parser.add_argument("--elr_decay2", type=float, default=2e-6, help="adam: encoder learning rate (decaying2)")
     parser.add_argument("--glr_decay2", type=float, default=2e-6, help="adam: generator learning rate (decaying2)")
     parser.add_argument("--dlr_decay2", type=float, default=2e-6, help="adam: discriminator learning rate (decaying2)")
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
+    parser.add_argument("--decay_epoch", type=int, default=9999, help="epoch from which to start lr decay")
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--img_height", type=int, default=128, help="size of image height")
     parser.add_argument("--img_width", type=int, default=128, help="size of image width")
@@ -55,8 +58,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes2"
-    model_name = "saved_models2"
+    volume_name = "volumes5"
+    model_name = "saved_models5"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -98,6 +101,7 @@ def train():
 
     if opt.epoch != 0:
         # Load pretrained models
+        encoder.load_state_dict(torch.load("%s/%s/encoder_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
         generator.load_state_dict(torch.load("%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
         discriminator_volume.load_state_dict(torch.load("%s/%s/discriminator_volume_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
         if use_ctsgan or use_ctsgan_all:
@@ -105,6 +109,7 @@ def train():
             discriminator_slices.load_state_dict(torch.load("%s/%s/discriminator_slice_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
     else:
         # Initialize weights
+        encoder.apply(weights_init_normal)
         generator.apply(weights_init_normal)
         discriminator_volume.apply(weights_init_normal)
         if use_ctsgan or use_ctsgan_all:
@@ -112,6 +117,7 @@ def train():
             discriminator_slices.apply(weights_init_normal)
 
     # Optimizers
+    optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr, betas=(opt.b1, opt.b2))
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr, betas=(opt.b1, opt.b2))
     optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
     if use_ctsgan or use_ctsgan_all:
@@ -125,12 +131,14 @@ def train():
         num_workers=opt.n_cpu,
     )
 
+    '''
     val_dataloader = DataLoader(
         CTDataset("./data/orig/test/", None),
         batch_size=1,
         shuffle=True,
         num_workers=1,
     )
+    '''
 
     # Tensor type
     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
@@ -139,7 +147,7 @@ def train():
 
     def sample_voxel_volumes(epoch, store):
 
-        total_volume_num = 85
+        total_volume_num = 18
         for j in range(0, total_volume_num):
 
             # Model inputs
@@ -180,7 +188,9 @@ def train():
     for epoch in range(opt.epoch, opt.n_epochs):
 
         # Optimizers decaying
+        '''
         if epoch == 200:
+            optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr_decay, betas=(opt.b1, opt.b2))
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
             if use_ctsgan or use_ctsgan_all:
@@ -189,11 +199,13 @@ def train():
 
         # Optimizers decaying 2
         if epoch == 400:
+            optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr_decay2, betas=(opt.b1, opt.b2))
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay2, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
+                '''
 
         for i, batch in enumerate(dataloader):
 
@@ -212,11 +224,12 @@ def train():
 
             ref_code = encoder(ref_volume)
             # input_volume = 0.125 * volume_noise + 0.875 * ref_code
-            input_volume = ref_code
+            input_volume = ref_code.data
 
             # Adversarial ground truths
-            valid = torch.ones((volume_noise.size(0), 1), requires_grad=False).cuda()
-            fake = torch.zeros((volume_noise.size(0), 1), requires_grad=False).cuda()
+            valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
+            fake = torch.zeros([1, 1, 8, 8, 8], requires_grad=False).cuda()
+            # (volume_noise.size(0), 1)
 
             real_volume = Variable(batch["B"].unsqueeze_(1).type(Tensor))
             real_volume = real_volume / 255.
@@ -231,11 +244,6 @@ def train():
             fake_volume = generator(input_volume)
             fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
 
-            real_volume_decode = generator(ref_code)
-            real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
-
-            generator_loss = L1_loss(real_volume_decode, real_volume)
-
             pred_real_volume = discriminator_volume(real_volume)
             pred_fake_volume = discriminator_volume(fake_volume.detach())
 
@@ -247,6 +255,11 @@ def train():
 
 
             if use_ctsgan:
+
+                # Adversarial ground truths
+                valid = torch.ones([1, 1, 8, 8], requires_grad=False).cuda()
+                fake = torch.zeros([1, 1, 8, 8], requires_grad=False).cuda()
+
                 # Extract slab from volume
                 slab_position = torch.randint(int(slab_size / 2), 127 - int(slab_size / 2), (4, ))
 
@@ -365,7 +378,7 @@ def train():
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
             d_total_acu_volume = torch.mean(torch.cat((d_real_acu_volume, d_fake_acu_volume), 0))
 
-            if use_ctsgan:
+            if use_ctsgan or use_ctsgan_all:
                 d_real_acu_slab = torch.ge(pred_real_slab.squeeze(), 0.5).float()
                 d_fake_acu_slab = torch.le(pred_fake_slab.squeeze(), 0.5).float()
                 d_total_acu_slab = torch.mean(torch.cat((d_real_acu_slab, d_fake_acu_slab), 0))
@@ -380,12 +393,12 @@ def train():
 
             if d_total_acu <= opt.d_threshold:
                 optimizer_DV.zero_grad()
-                if use_ctsgan:
+                if use_ctsgan or use_ctsgan_all:
                     optimizer_DSL.zero_grad()
                     optimizer_DSC.zero_grad()
                 D_loss.backward()
                 optimizer_DV.step()
-                if use_ctsgan:
+                if use_ctsgan or use_ctsgan_all:
                     optimizer_DSL.step()
                     optimizer_DSC.step()
                 discriminator_update = 'True'
@@ -394,12 +407,17 @@ def train():
             #  Train Generators
             # ------------------
             optimizer_DV.zero_grad()
-            if use_ctsgan:
+            optimizer_E.zero_grad()
+            if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL.zero_grad()
                 optimizer_DSC.zero_grad()
             optimizer_G.zero_grad()
 
+            # Adversarial ground truths
+            valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
+
             fake_volume = generator(input_volume)
+            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
             pred_fake_volume = discriminator_volume(fake_volume)
             GAN_loss = criterion_GAN(pred_fake_volume, valid)
 
@@ -436,7 +454,7 @@ def train():
             loss_dec_state = LOSS_DEC.NOT_USE
             # iou_loss = iou_loss - 0.5
             if loss_dec_state is LOSS_DEC.NOT_USE:
-                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * generator_loss + weight_recon * cont_loss
+                G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi # + weight_recon * cont_loss # + weight_recon * generator_loss
             elif loss_dec_state is LOSS_DEC.STEP:
                 step_epoch = 10.
                 total_level = round(opt.n_epochs / step_epoch)
@@ -444,14 +462,14 @@ def train():
                 dec_factor = weight_recon / total_level * cur_level
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi + weight_recon * generator_loss + weight_recon * cont_loss
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi # + weight_recon * cont_loss # + weight_recon * generator_loss
                 else:
                     G_loss = GAN_loss
             elif loss_dec_state is LOSS_DEC.SMOOTH:
                 dec_factor = weight_recon / opt.n_epochs * epoch
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi+ weight_recon * generator_loss + weight_recon * cont_loss
+                    G_loss = GAN_loss + weight_recon * loss_dist + weight_recon * loss_uqi # + weight_recon * cont_loss # + weight_recon * generator_loss
                 else:
                     G_loss = GAN_loss
             else:
@@ -460,6 +478,24 @@ def train():
 
             G_loss.backward()
             optimizer_G.step()
+
+            # ------------------
+            #  Train Encoders
+            # ------------------
+            optimizer_DV.zero_grad()
+            optimizer_G.zero_grad()
+            if use_ctsgan or use_ctsgan_all:
+                optimizer_DSL.zero_grad()
+                optimizer_DSC.zero_grad()
+            optimizer_E.zero_grad()
+
+            real_volume_decode = generator(ref_code)
+            real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
+
+            E_loss = L1_loss(real_volume_decode, real_volume)
+
+            E_loss.backward()
+            optimizer_E.step()
 
             batches_done = epoch * len(dataloader) + i
 
@@ -474,18 +510,18 @@ def train():
 
             # Print log
             sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, gen: %f, cont: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
+                "\r[Epoch %d/%d] [Batch %d/%d] [E loss : %f] [G loss: %f, adv: %f, L1: %f, iou: %f, sim: %f, cont: %f, w: %f] [D loss: %f, D accuracy: %f, D update: %s] ETA: %s"
                 % (
                     epoch,
                     opt.n_epochs,
                     i,
                     len(dataloader),
+                    E_loss.item(),
                     G_loss.item(),
                     GAN_loss.item(),
                     loss_dist.item(),
                     iou_loss,
                     loss_uqi.item(),
-                    generator_loss.item(),
                     cont_loss.item(),
                     weight_recon,
                     D_loss.item(),
@@ -498,9 +534,10 @@ def train():
 
         if opt.checkpoint_interval != -1 and epoch % opt.checkpoint_interval == 0:
             # Save model checkpoints
+            torch.save(encoder.state_dict(), "%s/%s/encoder_%d.pth" % (model_name, opt.dataset_name, epoch))
             torch.save(generator.state_dict(), "%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, epoch))
             torch.save(discriminator_volume.state_dict(), "%s/%s/discriminator_volume_%d.pth" % (model_name, opt.dataset_name, epoch))
-            if use_ctsgan:
+            if use_ctsgan or use_ctsgan_all:
                 torch.save(discriminator_slab.state_dict(), "%s/%s/discriminator_slab_%d.pth" % (model_name, opt.dataset_name, epoch))
                 torch.save(discriminator_slices.state_dict(), "%s/%s/discriminator_slice_%d.pth" % (model_name, opt.dataset_name, epoch))
 
@@ -519,5 +556,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
     train()
