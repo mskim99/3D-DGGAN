@@ -9,7 +9,7 @@ import numpy as np
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -26,7 +26,7 @@ FID = 0.
 LPIPS = 0.
 IS = 0.
 for i in range (0, 18):
-    fake_volume = np.load('../comparison/221222_4_log_loss_vol_slab_slice_G_recon_1_enc_1_no_IoU_cont_sigmoid_clamp_epoch_610_slab_slice_all/epoch_600_fake_V_' + str(i).zfill(2) + '.npy')
+    fake_volume = np.load('../comparison/221231_3_log_loss_vol_slab_slice_valid_fake_vec_vol_dec_G_from_vol_noise_recon_1_enc_1_reg_no_IoU_cont_clamp_epoch_610/epoch_600_fake_V_' + str(i).zfill(2) + '.npy')
 
     fake_volume = torch.from_numpy(fake_volume)
     fake_volume = fake_volume.squeeze()

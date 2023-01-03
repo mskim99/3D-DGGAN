@@ -250,19 +250,18 @@ class EncodeInput(nn.Module):
         super(EncodeInput, self).__init__()
 
         self.down1 = UNetDown(in_channels, 64, normalize=False)
-        self.msrb = MSRB(64)
+        # self.msrb = MSRB(64)
         self.down2 = UNetDown(64, 128)
         self.down3 = UNetDown(128, 256)
         self.down4 = UNetDown(256, 512)
+        # self.lffb = LFFB(64)
 
         '''
         self.mid1 = UNetMid(1024, 512, dropout=0.2)
         self.mid2 = UNetMid(1024, 512, dropout=0.2)
         self.mid3 = UNetMid(1024, 512, dropout=0.2)
+        
         '''
-
-        self.lffb = LFFB(64)
-
     def forward(self, x):
         # U-Net generator with skip connections from encoder to decoder
         # print(x.shape)
@@ -270,6 +269,7 @@ class EncodeInput(nn.Module):
         # print(d1.shape)
         # d1_l = self.lffb(d1)
         # print(d1_l.shape)
+        # d2 = self.down2(d1_l)
         d2 = self.down2(d1)
         # print(d2.shape)
         d3 = self.down3(d2)
@@ -283,7 +283,6 @@ class EncodeInput(nn.Module):
         # print(m2.shape)
         m3 = self.mid3(m2, m2)
         '''
-
         return d4
         # return m3
 
@@ -292,13 +291,21 @@ class GeneratorUNet(nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
         super(GeneratorUNet, self).__init__()
 
+        self.down1 = UNetDown(in_channels, 64, normalize=False)
+        self.msrb = MSRB(64)
+        self.down2 = UNetDown(64, 128)
+        self.down3 = UNetDown(128, 256)
+        self.down4 = UNetDown(256, 512)
+
         self.mid1 = UNetMid(1024, 512, dropout=0.2)
         self.mid2 = UNetMid(1024, 512, dropout=0.2)
         self.mid3 = UNetMid(1024, 512, dropout=0.2)
+
         self.mid3_1 = UNetMid(1024, 512, dropout=0.2)
         self.mid3_2 = UNetMid(1024, 512, dropout=0.2)
         self.mid3_3 = UNetMid(1024, 512, dropout=0.2)
         self.mid3_4 = UNetMid(1024, 512, dropout=0.2)
+
         self.mid4 = UNetMid(1024, 512, dropout=0.2)
         self.up1 = Upsample(512, 256)
         self.up2 = Upsample(256, 256)
@@ -312,14 +319,31 @@ class GeneratorUNet(nn.Module):
         )
 
     def forward(self, x):
+
         # U-Net generator with skip connections from encoder to decoder
         # print(x.shape)
+
+        '''
+        d1 = self.down1(x)
+        # print(d1.shape)
+        # d1_l = self.lffb(d1)
+        # print(d1_l.shape)
+        d2 = self.down2(d1)
+        # print(d2.shape)
+        d3 = self.down3(d2)
+        # print(d3.shape)
+        d4 = self.down4(d3)
+        # print(d4.shape)
+        '''
+
         m1 = self.mid1(x, x)
+        # m1 = self.mid1(d4, d4)
         # print(m1.shape)
         m2 = self.mid2(m1, m1)
         # print(m2.shape)
         m3 = self.mid3(m2, m2)
         # print(m3.shape)
+
         m3_1 = self.mid3_1(m3, m3)
         # print(m3_1.shape)
         m3_2 = self.mid3_2(m3_1, m3_1)
@@ -328,7 +352,9 @@ class GeneratorUNet(nn.Module):
         # print(m3_3.shape)
         m3_4 = self.mid3_4(m3_3, m3_3)
         # print(m3_4.shape)
+
         m4 = self.mid4(m3_4, m3_4)
+        # m4 = self.mid4(m3_4, m3_4)
         # print(m4.shape)
         u1 = self.up1(m4)
         # print(u1.shape)
@@ -364,13 +390,32 @@ class Discriminator_volume(nn.Module):
             *discriminator_block(256, 512),
             # nn.ZeroPad3d((1, 0, 1, 0)),
         )
-        self.final = nn.Conv3d(512, 1, 4, padding=1, bias=False)
+        # self.final = nn.Conv3d(512, 1, 4, padding=1, bias=False)
+        self.final = nn.Conv3d(512, 128, 4, padding=1, bias=False)
+
+        self.final2 = nn.Conv3d(128, 32, 4, stride=2, padding=1, bias=False)
+        self.final3 = nn.Conv3d(32, 8, 4, stride=2, padding=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        '''
+        self.final4 = nn.Conv3d(8, 1, 4, stride=2, padding=1, bias=False)
+        '''
 
     def forward(self, img_input):
 
         intermediate = self.model(img_input)
         pad = nn.functional.pad(intermediate, pad=(1,0,1,0,1,0))
-        return self.final(pad)
+        result = self.final(pad)
+        '''
+        result = self.final2(result)
+        result = self.final3(result)
+        result = self.sigmoid(result)
+        result = result.view(1, -1)
+        result = torch.mean(result, 1)
+        result = self.final4(result)
+        result = self.sigmoid(result)
+        '''
+
+        return result
 
 
 class Discriminator_slab(nn.Module):
@@ -393,12 +438,30 @@ class Discriminator_slab(nn.Module):
             # nn.ZeroPad3d((1, 0, 1, 0)),
         )
         self.final = nn.Conv2d(1025, 1, 4, padding=1, bias=False)
+        '''
+        self.final = nn.Conv2d(1025, 256, 4, padding=1, bias=False)
+        self.final2 = nn.Conv2d(256, 64, 4, stride=2, padding=1, bias=False)
+        self.final3 = nn.Conv2d(64, 16, 4, stride=2, padding=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        self.final4 = nn.Conv2d(16, 1, 4, stride=2, padding=1, bias=False)
+        '''
 
     def forward(self, img_input):
 
         intermediate = self.model(img_input)
         pad = nn.functional.pad(intermediate, pad=(1,0,1,0,1,0))
-        return self.final(pad)
+        result = self.final(pad)
+        '''
+        result = self.final2(result)
+        result = self.final3(result)
+        result = self.sigmoid(result)
+        result = result.view(1, -1)
+        result = torch.mean(result, 1)
+        result = self.final4(result)
+        result = self.sigmoid(result)
+        '''
+
+        return result
 
 
 class Discriminator_slices(nn.Module):
@@ -421,12 +484,27 @@ class Discriminator_slices(nn.Module):
             # nn.ZeroPad3d((1, 0, 1, 0)),
         )
         self.final = nn.Conv2d(1025, 1, 4, padding=1, bias=False)
+        '''
+        self.final = nn.Conv2d(1025, 256, 4, padding=1, bias=False)
+        self.final2 = nn.Conv2d(256, 64, 4, stride=2, padding=1, bias=False)
+        self.final3 = nn.Conv2d(64, 16, 4, stride=2, padding=1, bias=False)
         self.sigmoid = nn.Sigmoid()
+        self.final4 = nn.Conv2d(16, 1, 4, stride=2, padding=1, bias=False)
+        '''
 
     def forward(self, img_input):
 
         intermediate = self.model(img_input)
         pad = nn.functional.pad(intermediate, pad=(1,0,1,0,1,0))
-        pad = self.final(pad)
-        result = self.sigmoid(pad)
+        result = self.final(pad)
+        '''
+        result = self.final2(result)
+        result = self.final3(result)
+        result = self.sigmoid(result)
+        result = result.view(1, -1)
+        result = torch.mean(result, 1)
+        result = self.final4(result)
+        result = self.sigmoid(result)
+        '''
+
         return result
