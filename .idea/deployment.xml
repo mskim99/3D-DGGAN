@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="ubuntu@165.246.21.113:22" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="jionkim@165.246.42.44:22 CT_VSGAN">
         <serverdata>
@@ -100,6 +100,14 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="ubuntu@165.246.21.113:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/ubuntu/jionkim/CT_VSGAN" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>

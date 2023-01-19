@@ -11,7 +11,7 @@ data = volume.data
 print(data.min())
 print(data.max())
 '''
-
+'''
 vol_num = 0
 avg_vol = np.zeros([128, 128, 128])
 
@@ -44,3 +44,17 @@ with open('./data/orig/train/volume/avg_volume.binvox', 'wb') as f:
 
 print(vol_num)
 print('Finished')
+'''
+
+datas = []
+
+for i in range (0, 18):
+    data = np.load('J:/Program/CT_VSGAN/gen_volume/230113_2_log_E_lr_2e_6_G_D_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_RMSprop_lambda_1e_3/epoch_400_fake_EC_' + str(i).zfill(2) + '.npy')
+    print(np.average(data))
+    print(np.std(data))
+    datas.append(data)
+
+datas = np.array(datas)
+
+for i in range(0, 18):
+    print(np.abs(datas[i] - datas[0]).sum() / 262144.)

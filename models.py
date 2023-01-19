@@ -35,13 +35,12 @@ class UNetDown(nn.Module):
 
 
 class UNetMid(nn.Module):
-    def __init__(self, in_size, out_size, dropout=0.0):
+    def __init__(self, in_size, out_size, normalize=True, dropout=0.0):
         super(UNetMid, self).__init__()
-        layers = [
-            nn.Conv3d(in_size, out_size, 4, 1, 1, bias=False),
-            nn.InstanceNorm3d(out_size),
-            nn.LeakyReLU(0.2)
-        ]
+        layers = [nn.Conv3d(in_size, out_size, 4, 1, 1, bias=False)]
+        if normalize:
+            layers.append(nn.InstanceNorm3d(out_size))
+        layers.append(nn.LeakyReLU(0.2))
         if dropout:
             layers.append(nn.Dropout(dropout))
 
@@ -58,13 +57,12 @@ class UNetMid(nn.Module):
 
 
 class Upsample(nn.Module):
-    def __init__(self, in_size, out_size, dropout=0.0):
+    def __init__(self, in_size, out_size, normalize=True, dropout=0.0):
         super(Upsample, self).__init__()
-        layers = [
-            nn.ConvTranspose3d(in_size, out_size, 4, 2, 1, bias=False),
-            nn.InstanceNorm3d(out_size),
-            nn.ReLU(inplace=True),
-        ]
+        layers = [nn.ConvTranspose3d(in_size, out_size, 4, 2, 1, bias=False)]
+        if normalize:
+            layers.append(nn.InstanceNorm3d(out_size))
+        layers.append(nn.ReLU(inplace=True))
         if dropout:
             layers.append(nn.Dropout(dropout))
 
@@ -251,10 +249,10 @@ class EncodeInput(nn.Module):
 
         self.down1 = UNetDown(in_channels, 64, normalize=False)
         # self.msrb = MSRB(64)
-        self.down2 = UNetDown(64, 128)
-        self.down3 = UNetDown(128, 256)
-        self.down4 = UNetDown(256, 512)
-        # self.lffb = LFFB(64)
+        self.down2 = UNetDown(64, 128, normalize=False)
+        self.down3 = UNetDown(128, 256, normalize=False)
+        self.down4 = UNetDown(256, 512, normalize=False)
+        self.lffb = LFFB(64)
 
         '''
         self.mid1 = UNetMid(1024, 512, dropout=0.2)
@@ -267,10 +265,10 @@ class EncodeInput(nn.Module):
         # print(x.shape)
         d1 = self.down1(x)
         # print(d1.shape)
-        # d1_l = self.lffb(d1)
+        d1_l = self.lffb(d1)
         # print(d1_l.shape)
-        # d2 = self.down2(d1_l)
-        d2 = self.down2(d1)
+        d2 = self.down2(d1_l)
+        # d2 = self.down2(d1)
         # print(d2.shape)
         d3 = self.down3(d2)
         # print(d3.shape)
@@ -293,23 +291,23 @@ class GeneratorUNet(nn.Module):
 
         self.down1 = UNetDown(in_channels, 64, normalize=False)
         self.msrb = MSRB(64)
-        self.down2 = UNetDown(64, 128)
-        self.down3 = UNetDown(128, 256)
-        self.down4 = UNetDown(256, 512)
+        self.down2 = UNetDown(64, 128, normalize=True)
+        self.down3 = UNetDown(128, 256, normalize=True)
+        self.down4 = UNetDown(256, 512, normalize=True)
 
-        self.mid1 = UNetMid(1024, 512, dropout=0.2)
-        self.mid2 = UNetMid(1024, 512, dropout=0.2)
-        self.mid3 = UNetMid(1024, 512, dropout=0.2)
+        self.mid1 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.mid2 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.mid3 = UNetMid(1024, 512, dropout=0.2, normalize=True)
 
-        self.mid3_1 = UNetMid(1024, 512, dropout=0.2)
-        self.mid3_2 = UNetMid(1024, 512, dropout=0.2)
-        self.mid3_3 = UNetMid(1024, 512, dropout=0.2)
-        self.mid3_4 = UNetMid(1024, 512, dropout=0.2)
+        self.mid3_1 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.mid3_2 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.mid3_3 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.mid3_4 = UNetMid(1024, 512, dropout=0.2, normalize=True)
 
-        self.mid4 = UNetMid(1024, 512, dropout=0.2)
-        self.up1 = Upsample(512, 256)
-        self.up2 = Upsample(256, 256)
-        self.up3 = Upsample(256, 128)
+        self.mid4 = UNetMid(1024, 512, dropout=0.2, normalize=True)
+        self.up1 = Upsample(512, 256, normalize=True)
+        self.up2 = Upsample(256, 256, normalize=True)
+        self.up3 = Upsample(256, 128, normalize=True)
 
         self.final = nn.Sequential(
             # nn.Conv3d(128, out_channels, 4, padding=1),

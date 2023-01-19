@@ -28,19 +28,19 @@ def train():
         SMOOTH = 3
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-    parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
+    parser.add_argument("--epoch", type=int, default=200, help="epoch to start training from")
+    parser.add_argument("--n_epochs", type=int, default=201, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--elr", type=float, default=2e-6, help="adam: encoder learning rate") # Default : 2e-5
-    parser.add_argument("--glr", type=float, default=2e-6, help="adam: generator learning rate") # Default : 2e-5
-    parser.add_argument("--dlr", type=float, default=2e-6, help="adam: discriminator learning rate") # Default : 2e-5
+    parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
+    parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
     parser.add_argument("--elr_decay", type=float, default=2e-6, help="adam: encoder learning rate (decaying)")
-    parser.add_argument("--glr_decay", type=float, default=2e-7, help="adam: generator learning rate (decaying)")
-    parser.add_argument("--dlr_decay", type=float, default=2e-7, help="adam: discriminator learning rate (decaying)")
+    parser.add_argument("--glr_decay", type=float, default=2e-6, help="adam: generator learning rate (decaying)")
+    parser.add_argument("--dlr_decay", type=float, default=2e-6, help="adam: discriminator learning rate (decaying)")
     parser.add_argument("--elr_decay2", type=float, default=2e-6, help="adam: encoder learning rate (decaying2)")
-    parser.add_argument("--glr_decay2", type=float, default=2e-8, help="adam: generator learning rate (decaying2)")
-    parser.add_argument("--dlr_decay2", type=float, default=2e-8, help="adam: discriminator learning rate (decaying2)")
+    parser.add_argument("--glr_decay2", type=float, default=2e-7, help="adam: generator learning rate (decaying2)")
+    parser.add_argument("--dlr_decay2", type=float, default=2e-7, help="adam: discriminator learning rate (decaying2)")
     parser.add_argument("--elr_decay3", type=float, default=2e-7, help="adam: encoder learning rate (decaying3)")
     parser.add_argument("--glr_decay3", type=float, default=2e-7, help="adam: generator learning rate (decaying3)")
     parser.add_argument("--dlr_decay3", type=float, default=2e-7, help="adam: discriminator learning rate (decaying3)")
@@ -58,12 +58,12 @@ def train():
     parser.add_argument(
         "--sample_interval", type=int, default=20, help="interval between sampling of images from generators"
     )
-    parser.add_argument("--checkpoint_interval", type=int, default=200, help="interval between model checkpoints")
+    parser.add_argument("--checkpoint_interval", type=int, default=50, help="interval between model checkpoints")
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes3"
-    model_name = "saved_models3"
+    volume_name = "volumes"
+    model_name = "saved_models"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -124,10 +124,11 @@ def train():
     optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr, betas=(opt.b1, opt.b2))
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr, betas=(opt.b1, opt.b2))
     optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
+    '''
     if use_ctsgan or use_ctsgan_all:
         optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
         optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr, betas=(opt.b1, opt.b2))
-
+        '''
     dataloader = DataLoader(
         CTDataset("./data/orig/train/", None),
         batch_size=opt.batch_size,
@@ -218,8 +219,8 @@ def train():
     discriminator_update = 'False'
     slab_size = 28
     slice_num = 56
-    w_enc_code = 1.
-    w_enc_noise = 0.
+    w_enc_code = 0.5
+    w_enc_noise = 0.5
     for epoch in range(opt.epoch, opt.n_epochs):
 
         encoder.train()
@@ -234,20 +235,22 @@ def train():
             optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr_decay, betas=(opt.b1, opt.b2))
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
+            '''
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay, betas=(opt.b1, opt.b2))
-
-        '''
+                '''
         # Optimizers decaying 2
         if epoch == 250:
             optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr_decay2, betas=(opt.b1, opt.b2))
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.glr_decay2, betas=(opt.b1, opt.b2))
             optimizer_DV = torch.optim.Adam(discriminator_volume.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
+            '''
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL = torch.optim.Adam(discriminator_slab.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
                 optimizer_DSC = torch.optim.Adam(discriminator_slices.parameters(), lr=opt.dlr_decay2, betas=(opt.b1, opt.b2))
-
+                '''
+        '''
         # Optimizers decaying 3
         if epoch == 150:
             optimizer_E = torch.optim.Adam(encoder.parameters(), lr=opt.elr_decay3, betas=(opt.b1, opt.b2))
@@ -266,10 +269,11 @@ def train():
             optimizer_G.zero_grad()
             optimizer_E.zero_grad()
             optimizer_DV.zero_grad()
+            '''
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL.zero_grad()
                 optimizer_DSC.zero_grad()
-
+                '''
             '''
             ref_volume = Variable(batch["A"].unsqueeze_(1).type(Tensor))
             ref_volume = ref_volume / 255.
@@ -293,7 +297,7 @@ def train():
             real_volume_max = real_volume.max()
             real_volume_min = real_volume.min()
             real_volume = (real_volume - real_volume_min) / (real_volume_max - real_volume_min)
-            real_volume = torch.clamp(real_volume, min=0.35, max=1.0)
+            real_volume = torch.clamp(real_volume, min=0.0, max=1.0)
 
             # np.save('./test_real.npy', real_volume.cpu().detach().data)
 
@@ -475,14 +479,18 @@ def train():
 
             if d_total_acu <= opt.d_threshold:
                 optimizer_DV.zero_grad()
+                '''
                 if use_ctsgan or use_ctsgan_all:
                     optimizer_DSL.zero_grad()
                     optimizer_DSC.zero_grad()
+                    '''
                 D_loss.backward()
                 optimizer_DV.step()
+                '''
                 if use_ctsgan or use_ctsgan_all:
                     optimizer_DSL.step()
                     optimizer_DSC.step()
+                    '''
                 discriminator_update = 'True'
 
             # ------------------
@@ -490,9 +498,11 @@ def train():
             # ------------------
             optimizer_DV.zero_grad()
             optimizer_E.zero_grad()
+            '''
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL.zero_grad()
                 optimizer_DSC.zero_grad()
+                '''
             optimizer_G.zero_grad()
 
             # Adversarial ground truths
@@ -514,6 +524,53 @@ def train():
 
             pred_fake_volume = discriminator_volume(fake_volume)
             GAN_loss = criterion_GAN(pred_fake_volume, valid)
+
+            if use_ctsgan:
+
+                # Adversarial ground truths
+                valid = torch.ones([1, 1, 8, 8], requires_grad=False).cuda()
+
+                # Extract slab from volume
+                slab_position = torch.randint(int(slab_size / 2), 127 - int(slab_size / 2), (4,))
+
+                slab_range = torch.zeros(4, 2)
+                for j in range(0, 4):
+                    slab_range[j, 0] = slab_position[j] - int(slab_size / 2)
+                    slab_range[j, 1] = slab_position[j] + int(slab_size / 2)
+
+                fake_volume_slab = []
+                for j in range(0, 4):
+                    fake_volume_slab.append(fake_volume[0, 0, :, :, int(slab_range[j, 0]):int(slab_range[j, 1])])
+
+                fake_volume_slab_tot = torch.cat([fake_volume_slab[0], fake_volume_slab[1], fake_volume_slab[2],
+                                                  fake_volume_slab[3]], dim=2).reshape(1, -1, 128, 128)
+
+                pred_fake_slab = discriminator_slab(fake_volume_slab_tot.detach())
+
+                # Calculate Slab Generator Loss
+                GAN_loss_slab = criterion_GAN(pred_fake_slab, valid)
+                GAN_loss = GAN_loss + GAN_loss_slab
+
+                # Extract slices from volume
+                slices_position = torch.randint(1, 126, (slice_num,))
+
+                slices_range = torch.zeros(slice_num, 2)
+                for j in range(0, slice_num):
+                    slices_range[j, 0] = slices_position[j] - 1
+                    slices_range[j, 1] = slices_position[j] + 1
+
+                fake_volume_slices = []
+                for j in range(0, slice_num):
+                    fake_volume_slices.append(fake_volume[0, 0, :, :, int(slices_range[j, 0]):int(slices_range[j, 1])])
+
+                fake_volume_slices_tot = torch.cat(real_volume_slices, dim=2).reshape(1, -1, 128, 128)
+
+                pred_fake_slices = discriminator_slices(fake_volume_slices_tot.detach())
+
+                # Calculate Slice Discriminator Loss
+                GAN_loss_slices = criterion_GAN(pred_fake_slices, valid)
+                GAN_loss = GAN_loss + GAN_loss_slices
+                GAN_loss = GAN_loss / 3.
 
             cont_loss = 0.0
             for j in range (1, 126):
@@ -585,9 +642,11 @@ def train():
 
             optimizer_DV.zero_grad()
             optimizer_G.zero_grad()
+            '''
             if use_ctsgan or use_ctsgan_all:
                 optimizer_DSL.zero_grad()
                 optimizer_DSC.zero_grad()
+                '''
             optimizer_E.zero_grad()
             '''
             volume_noise = torch.rand(128 * 128 * 128)
@@ -668,5 +727,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     train()

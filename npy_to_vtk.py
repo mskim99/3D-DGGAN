@@ -4,10 +4,10 @@ from vtk.util import numpy_support
 import os
 import binvox_rw
 
-name = "230103_7_log_loss_vol_slab_slice_valid_fake_vec_vol_dec_E_lr_2e_6_G_lr_2e_5_recon_no_IoU_cont_remove_layer_D_lr_2e_5_clamp_decay_2_50_epoch_210"
+name = "230119_4_log_E_no_norm_lr_2e_6_G_recon_no_IoU_cont_D_no_norm_DM_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_RMSprop_lambda_1e_4"
 
-for idx in range(20, 220, 20):
-    for i in range (9, 10):
+for idx in range(40, 440, 40):
+    for i in range (8, 10):
         data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.npy')
 
         data = data[:, :, :]
@@ -27,7 +27,8 @@ for idx in range(20, 220, 20):
         writer.SetInputData(imdata)
         writer.Write()
 
-        print(str(idx) + ' Finished')
+    print(str(idx) + ' Finished')
+
 '''
 for i in range (0, 18):
     data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_400_fake_V_' + str(i).zfill(2) + '.npy')
@@ -69,9 +70,8 @@ for i in range (0, 18):
     writer.SetInputData(imdata)
     writer.Write()
     '''
-
 '''
-volume_path = './data/orig/train/avg_volume_train.binvox'
+volume_path = 'J:/DK_Data_Process/Paper/volume/f_0000008/model.binvox'
 if os.path.exists(volume_path):
     with open(volume_path, 'rb') as f:
         volume = binvox_rw.read_as_3d_array(f)
@@ -89,7 +89,7 @@ if os.path.exists(volume_path):
         imdata.GetPointData().SetScalars(depthArray)
 
         writer = vtk.vtkMetaImageWriter()
-        writer.SetFileName('./data/orig/train/avg_volume_train.mha')
+        writer.SetFileName('J:/DK_Data_Process/Paper/volume/f_0000008/model.mha')
         writer.SetInputData(imdata)
         writer.Write()
         '''
