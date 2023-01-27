@@ -26,7 +26,7 @@ FID = 0.
 LPIPS = 0.
 IS = 0.
 for i in range (0, 18):
-    fake_volume = np.load('../comparison/230116_4_log_E_no_norm_lr_2e_6_G_D_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_RMSprop_lambda_1e_4/epoch_200_fake_V_' + str(i).zfill(2) + '.npy')
+    fake_volume = np.load('../comparison/230120_2_log_E_no_norm_lr_2e_6_G_D_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_3_D_Corr_Adam_lambda_1e_4_E_code_noise_random/epoch_200_fake_V_' + str(i).zfill(2) + '.npy')
 
     fake_volume = torch.from_numpy(fake_volume)
     fake_volume = fake_volume.squeeze()

@@ -4,28 +4,30 @@ from vtk.util import numpy_support
 import os
 import binvox_rw
 
-name = "230119_4_log_E_no_norm_lr_2e_6_G_recon_no_IoU_cont_D_no_norm_DM_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_RMSprop_lambda_1e_4"
+name = "230127_3_log_E_no_norm_lr_2e_6_G_D_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_3_RMSprop_lambda_1e_4_code_noise_random_batch_size_2"
 
-for idx in range(40, 440, 40):
-    for i in range (8, 10):
+for idx in range(400, 440, 40):
+    for i in range (10, 11):
         data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.npy')
+        # print(data.shape)
 
-        data = data[:, :, :]
-        # data = data / 255.
-        imdata = vtk.vtkImageData()
+        for j in range (0, 2):
+            data_portion = data[j, 0, :, :, :]
+            # data = data / 255.
+            imdata = vtk.vtkImageData()
 
-        depthArray = numpy_support.numpy_to_vtk(data.ravel(order='F'), deep=True, array_type=vtk.VTK_FLOAT)
+            depthArray = numpy_support.numpy_to_vtk(data_portion.ravel(order='F'), deep=True, array_type=vtk.VTK_FLOAT)
 
-        imdata.SetDimensions([128, 128, 128])
-        # fill the vtk image data object
-        imdata.SetSpacing([1, 1, 1])
-        imdata.SetOrigin([0, 0, 0])
-        imdata.GetPointData().SetScalars(depthArray)
+            imdata.SetDimensions([128, 128, 128])
+            # fill the vtk image data object
+            imdata.SetSpacing([1, 1, 1])
+            imdata.SetOrigin([0, 0, 0])
+            imdata.GetPointData().SetScalars(depthArray)
 
-        writer = vtk.vtkMetaImageWriter()
-        writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.mha')
-        writer.SetInputData(imdata)
-        writer.Write()
+            writer = vtk.vtkMetaImageWriter()
+            writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '_' + str(j).zfill(2) + '.mha')
+            writer.SetInputData(imdata)
+            writer.Write()
 
     print(str(idx) + ' Finished')
 
