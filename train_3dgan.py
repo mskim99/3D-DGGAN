@@ -45,8 +45,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes"
-    model_name = "saved_models"
+    volume_name = "volumes2"
+    model_name = "saved_models2"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -107,7 +107,7 @@ def train():
 
     def sample_voxel_volumes(epoch, store):
 
-        total_volume_num = 18
+        total_volume_num = 6
         for j in range(0, total_volume_num):
 
             # Model inputs
@@ -175,6 +175,7 @@ def train():
             pred_real_volume = discriminator(real_volume)
             pred_fake_volume = discriminator(fake_volume.detach())
 
+            '''
             # Adversarial ground truths
             valid = torch.ones_like(pred_real_volume).cuda()
             fake = torch.zeros_like(pred_fake_volume).cuda()
@@ -184,6 +185,11 @@ def train():
             DV_loss_fake_volume = criterion_GAN(pred_fake_volume, fake)
 
             D_loss = 0.5 * (DV_loss_real_volume + DV_loss_fake_volume)
+            '''
+
+            # For WGAN
+            D_loss = - torch.mean(pred_real_volume) + torch.mean(pred_fake_volume)
+
             '''
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -209,10 +215,15 @@ def train():
 
             pred_fake_volume = discriminator(fake_volume)
 
+            '''
             # Adversarial ground truths
             valid = torch.ones_like(pred_fake_volume).cuda()
 
             G_loss = criterion_GAN(pred_fake_volume, valid)
+            '''
+
+            # For WGAN
+            G_loss = -torch.mean(discriminator(fake_volume))
 
             G_loss.backward()
             optimizer_G.step()
@@ -263,5 +274,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     train()
