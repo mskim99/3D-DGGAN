@@ -18,6 +18,7 @@ def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     splits -- number of splits
     """
     N = len(imgs)
+    # print(N)
 
     assert batch_size > 0
     assert N > batch_size

@@ -23,7 +23,7 @@ class CTDataset(Dataset):
         # Get data of rendering images
         image_paths = self.datapaths_img[idx]
         rendering_images = []
-        image_path_list = sorted(glob.glob(image_paths + '/rendering/a*.png'))
+        image_path_list = sorted(glob.glob(image_paths + '/rendering/*.png'))
         for image_path in image_path_list:
             rendering_image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED).astype(np.uint8)
             rendering_image = cv2.resize(rendering_image, dsize=(128, 128), interpolation=cv2.INTER_AREA)

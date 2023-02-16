@@ -59,10 +59,10 @@ def train():
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
-    parser.add_argument("--batch_size", type=int, default=2, help="size of the batches")
+    parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
     parser.add_argument("--elr", type=float, default=2e-6, help="adam: encoder learning rate") # Default : 2e-5
-    parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
-    parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
+    parser.add_argument("--glr", type=float, default=2e-4, help="adam: generator learning rate") # Default : 2e-5
+    parser.add_argument("--dlr", type=float, default=2e-4, help="adam: discriminator learning rate") # Default : 2e-5
     parser.add_argument("--elr_decay", type=float, default=2e-6, help="adam: encoder learning rate (decaying)")
     parser.add_argument("--glr_decay", type=float, default=2e-6, help="adam: generator learning rate (decaying)")
     parser.add_argument("--dlr_decay", type=float, default=2e-6, help="adam: discriminator learning rate (decaying)")
@@ -90,8 +90,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes4"
-    model_name = "saved_models4"
+    volume_name = "volumes3"
+    model_name = "saved_models3"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -110,7 +110,7 @@ def train():
     # Calculate output of image discriminator (PatchGAN)
     patch = (1, opt.img_height // 2 ** 4, opt.img_width // 2 ** 4, opt.img_depth // 2 ** 4)
 
-    use_ctsgan = False
+    use_ctsgan = True
     use_ctsgan_all = False
 
     # Initialize generator and discriminator
@@ -168,7 +168,7 @@ def train():
         '''
 
     dataloader = DataLoader(
-        CTDataset("./data/orig/train/", None),
+        CTDataset("./data/lol2/train/", None),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu,
@@ -352,7 +352,7 @@ def train():
             real_volume_max = real_volume.max()
             real_volume_min = real_volume.min()
             real_volume = (real_volume - real_volume_min) / (real_volume_max - real_volume_min)
-            real_volume = torch.clamp(real_volume, min=0.0, max=1.0)
+            real_volume = torch.clamp(real_volume, min=0.23, max=1.0) # Thresholding : 20%
 
             # np.save('./test_real.npy', real_volume.cpu().detach().data)
 
@@ -485,10 +485,10 @@ def train():
             D_loss = Disc_loss + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item()
 
             gp_vol = calc_gradient_penalty(discriminator_volume, real_volume.data, fake_volume.data, vol_or_not=True)
-            # gp_slab = calc_gradient_penalty(discriminator_slab, real_volume_slab_tot.data, fake_volume_slab_tot.data, vol_or_not=False)
-            # gp_slice = calc_gradient_penalty(discriminator_slices, real_volume_slices_tot.data, fake_volume_slices_tot.data, vol_or_not=False)
-            # gp_value = (gp_vol + gp_slab + gp_slice) / 3.
-            gp_value = gp_vol
+            gp_slab = calc_gradient_penalty(discriminator_slab, real_volume_slab_tot.data, fake_volume_slab_tot.data, vol_or_not=False)
+            gp_slice = calc_gradient_penalty(discriminator_slices, real_volume_slices_tot.data, fake_volume_slices_tot.data, vol_or_not=False)
+            gp_value = (gp_vol + gp_slab + gp_slice) / 3.
+            # gp_value = gp_vol
 
             # print(pred_real_volume.shape)
             # print(pred_fake_volume.shape)
