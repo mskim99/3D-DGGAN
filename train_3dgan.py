@@ -24,9 +24,9 @@ def train():
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=401, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
-    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
-    parser.add_argument("--glr", type=float, default=2e-6, help="adam: generator learning rate") # Default : 2e-5
-    parser.add_argument("--dlr", type=float, default=2e-6, help="adam: discriminator learning rate") # Default : 2e-5
+    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")
+    parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
+    parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--decay_epoch", type=int, default=9999, help="epoch from which to start lr decay")
@@ -45,8 +45,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes2"
-    model_name = "saved_models2"
+    volume_name = "volumes"
+    model_name = "saved_models"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -107,7 +107,7 @@ def train():
 
     def sample_voxel_volumes(epoch, store):
 
-        total_volume_num = 6
+        total_volume_num = 12
         for j in range(0, total_volume_num):
 
             # Model inputs
@@ -175,7 +175,6 @@ def train():
             pred_real_volume = discriminator(real_volume)
             pred_fake_volume = discriminator(fake_volume.detach())
 
-            '''
             # Adversarial ground truths
             valid = torch.ones_like(pred_real_volume).cuda()
             fake = torch.zeros_like(pred_fake_volume).cuda()
@@ -185,10 +184,9 @@ def train():
             DV_loss_fake_volume = criterion_GAN(pred_fake_volume, fake)
 
             D_loss = 0.5 * (DV_loss_real_volume + DV_loss_fake_volume)
-            '''
 
             # For WGAN
-            D_loss = - torch.mean(pred_real_volume) + torch.mean(pred_fake_volume)
+            # D_loss = - torch.mean(pred_real_volume) + torch.mean(pred_fake_volume)
 
             '''
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
@@ -215,15 +213,13 @@ def train():
 
             pred_fake_volume = discriminator(fake_volume)
 
-            '''
             # Adversarial ground truths
             valid = torch.ones_like(pred_fake_volume).cuda()
 
             G_loss = criterion_GAN(pred_fake_volume, valid)
-            '''
 
             # For WGAN
-            G_loss = -torch.mean(discriminator(fake_volume))
+            # G_loss = -torch.mean(discriminator(fake_volume))
 
             G_loss.backward()
             optimizer_G.step()
@@ -274,5 +270,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     train()

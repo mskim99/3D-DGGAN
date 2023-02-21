@@ -4,17 +4,18 @@ from vtk.util import numpy_support
 import os
 import binvox_rw
 
-name = "230201_4_log_E_no_norm_lr_2e_6_G_D_recon_no_IoU_cont_epoch_410_input_rate_c_n_1_1_WGAN_GP_3_RMSprop_lambda_1e_4_code_noise_random_batch_size_2_lol2"
+name = "230217_2_log_3dwgan_liver_lr_2e_6"
 
+'''
 for idx in range(400, 440, 40):
 
-    for i in range (0, 18):
-        data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.npy')
+    for i in range (0, 6):
+        # data = np.load('J:/Program/CT_VSGAN_data/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.npy')
+        data = np.load('J:/Program/CT_VSGAN_data/gen_volume/real_data/real_V_' + str(i).zfill(2) + '.npy')
         data = data[:, :, :]
         # print(data.shape)
         # data = data / 255.
 
-        '''
         imdata = vtk.vtkImageData()
 
         depthArray = numpy_support.numpy_to_vtk(data.ravel(order='F'), deep=True, array_type=vtk.VTK_FLOAT)
@@ -26,12 +27,12 @@ for idx in range(400, 440, 40):
         imdata.GetPointData().SetScalars(depthArray)
 
         writer = vtk.vtkMetaImageWriter()
-        writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.mha')
+        # writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '.mha')
+        writer.SetFileName('J:/Program/CT_VSGAN_data/gen_volume/real_data/real_V_' + str(i).zfill(2) + '.npy')
         writer.SetInputData(imdata)
         writer.Write()
-        '''
-
-        for j in range (0, 2):
+        
+        for j in range (0, 16):
             data_portion = data[j, 0, :, :, :]
             # data_portion = data.copy()
 
@@ -47,15 +48,16 @@ for idx in range(400, 440, 40):
             imdata.GetPointData().SetScalars(depthArray)
 
             writer = vtk.vtkMetaImageWriter()
-            writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '_' + str(j).zfill(2) + '.mha')
+            writer.SetFileName('J:/Program/CT_VSGAN_data/gen_volume/' + name + '/epoch_' + str(idx) + '_fake_V_' + str(i).zfill(2) + '_' + str(j).zfill(2) + '.mha')
             writer.SetInputData(imdata)
             writer.Write()
-
+                
     print(str(idx) + ' Finished')
+    '''
 
-'''
-for i in range (0, 18):
-    data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_400_fake_V_' + str(i).zfill(2) + '.npy')
+for i in range (1, 112):
+    # data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_400_fake_V_' + str(i).zfill(2) + '.npy')
+    data = np.load('J:/Program/CT_VSGAN_data/gen_volume/real_data/p_' + str(i).zfill(3) + '.npy')
 
     data = data[:, :, :]
     # data = data / 255.
@@ -70,10 +72,12 @@ for i in range (0, 18):
     imdata.GetPointData().SetScalars(depthArray)
 
     writer = vtk.vtkMetaImageWriter()
-    writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_400_fake_V_' + str(i).zfill(2) + '.mha')
+    # writer.SetFileName('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_400_fake_V_' + str(i).zfill(2) + '.mha')
+    writer.SetFileName('J:/Program/CT_VSGAN_data/gen_volume/real_data/p_' + str(i).zfill(2) + '.npy')
     writer.SetInputData(imdata)
     writer.Write()
 
+'''
 for i in range (0, 18):
     data = np.load('J:/Program/CT_VSGAN/gen_volume/' + name + '/epoch_600_fake_V_' + str(i).zfill(2) + '.npy')
 
