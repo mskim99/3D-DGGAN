@@ -61,8 +61,8 @@ def train():
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
     parser.add_argument("--elr", type=float, default=2e-6, help="adam: encoder learning rate") # Default : 2e-5
-    parser.add_argument("--glr", type=float, default=2e-4, help="adam: generator learning rate") # Default : 2e-5
-    parser.add_argument("--dlr", type=float, default=2e-4, help="adam: discriminator learning rate") # Default : 2e-5
+    parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
+    parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
     parser.add_argument("--elr_decay", type=float, default=2e-6, help="adam: encoder learning rate (decaying)")
     parser.add_argument("--glr_decay", type=float, default=2e-6, help="adam: generator learning rate (decaying)")
     parser.add_argument("--dlr_decay", type=float, default=2e-6, help="adam: discriminator learning rate (decaying)")
@@ -90,8 +90,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes3"
-    model_name = "saved_models3"
+    volume_name = "volumes"
+    model_name = "saved_models"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -168,7 +168,7 @@ def train():
         '''
 
     dataloader = DataLoader(
-        CTDataset("./data/lol2/train/", None),
+        CTDataset("./data/liver/", None),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu,
@@ -224,10 +224,10 @@ def train():
             volume_noise = volume_noise.cuda()
 
             enc_code = encoder(volume_noise)
-            enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
+            # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             fake_volume = generator(enc_code)
-            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
+            # fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
 
             # Print log
             sys.stdout.write(
@@ -268,11 +268,9 @@ def train():
         encoder.train()
         generator.train()
         discriminator_volume.train()
-        '''
         if use_ctsgan or use_ctsgan_all:
             discriminator_slices.train()
             discriminator_slab.train()
-        '''
 
         '''
         # Optimizers decaying
@@ -311,11 +309,16 @@ def train():
         for i, batch in enumerate(dataloader):
 
             # Random weight generation for code & noise
+            '''
             w_enc_code = torch.rand(1)
             w_enc_noise = 1 - w_enc_code
-            
+
             w_enc_code = w_enc_code.cuda()
             w_enc_noise = w_enc_noise.cuda()
+            '''
+
+            w_enc_code = 0.5
+            w_enc_noise = 0.5
 
             # --------------------
             #  Train Discriminator
@@ -352,7 +355,7 @@ def train():
             real_volume_max = real_volume.max()
             real_volume_min = real_volume.min()
             real_volume = (real_volume - real_volume_min) / (real_volume_max - real_volume_min)
-            real_volume = torch.clamp(real_volume, min=0.23, max=1.0) # Thresholding : 20%
+            real_volume = torch.clamp(real_volume, min=0.0, max=1.0)
 
             # np.save('./test_real.npy', real_volume.cpu().detach().data)
 
@@ -360,11 +363,15 @@ def train():
             #  Train Discriminator, only update every disc_update batches
             # ---------------------
             # Real loss
+            '''
             volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
             volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
-            enc_code = encoder(volume_noise)
-            enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
+            '''
+
+            real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
+            enc_code = encoder(real_volume_input)
+            # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             enc_noise = torch.randn(opt.batch_size * 262144)
             enc_noise = enc_noise.reshape(opt.batch_size, 512, 8, 8, 8)
@@ -373,8 +380,7 @@ def train():
             input_code = w_enc_code * enc_code + w_enc_noise * enc_noise
             fake_volume = generator(input_code)
             # fake_volume = generator(volume_noise)
-            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
-
+            # fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
             pred_real_volume = discriminator_volume(real_volume)
             pred_fake_volume = discriminator_volume(fake_volume.detach())
 
@@ -526,6 +532,7 @@ def train():
                     optimizer_DSC.zero_grad()
                     '''
                 D_loss.backward()
+
                 gp_value.backward() # Gradient Penalty (WGAN-GP)
                 optimizer_DV.step()
                 '''
@@ -545,16 +552,21 @@ def train():
                 optimizer_DSL.zero_grad()
                 optimizer_DSC.zero_grad()
                 '''
+
             optimizer_G.zero_grad()
 
             # Adversarial ground truths
             valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
 
+            '''
             volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
             volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
-            enc_code = encoder(volume_noise)
-            enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
+            '''
+
+            real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
+            enc_code = encoder(real_volume_input)
+            # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             enc_noise = torch.randn(opt.batch_size * 262144)
             enc_noise = enc_noise.reshape(opt.batch_size, 512, 8, 8, 8)
@@ -562,9 +574,8 @@ def train():
 
             input_code = w_enc_code * enc_code + w_enc_noise * enc_noise
             fake_volume = generator(input_code)
-            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
+            # fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
 
-            '''
             if use_ctsgan:
                 GV_loss = -torch.mean(discriminator_volume(fake_volume))
 
@@ -617,8 +628,7 @@ def train():
                 GAN_loss = (GV_loss + GSLB_loss + GSLC_loss) / 3.
 
             else:
-            '''
-            GAN_loss = -torch.mean(discriminator_volume(fake_volume))
+                GAN_loss = -torch.mean(discriminator_volume(fake_volume))
 
 
 
@@ -698,18 +708,20 @@ def train():
                 optimizer_DSC.zero_grad()
                 '''
             optimizer_E.zero_grad()
+
             '''
             volume_noise = torch.rand(128 * 128 * 128)
             volume_noise = volume_noise.reshape(1, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
             input_code = encoder(volume_noise)
             fake_volume = generator(input_code)
-            fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
             '''
+            # fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
+
             real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
             ref_code = encoder(real_volume_input)
             real_volume_decode = generator(ref_code)
-            real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
+            # real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
 
             weight_recon_enc = 1.
             enc_loss = L1_loss(real_volume, real_volume_decode)
@@ -780,5 +792,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
     train()

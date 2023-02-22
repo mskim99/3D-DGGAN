@@ -253,6 +253,7 @@ class EncodeInput(nn.Module):
         self.down3 = UNetDown(128, 256, normalize=False)
         self.down4 = UNetDown(256, 512, normalize=False)
         self.lffb = LFFB(64)
+        self.sigmoid = nn.Sigmoid()
 
         '''
         self.mid1 = UNetMid(1024, 512, dropout=0.2)
@@ -274,6 +275,7 @@ class EncodeInput(nn.Module):
         # print(d3.shape)
         d4 = self.down4(d3)
         # print(d4.shape)
+        res = self.sigmoid(d4)
         '''
         m1 = self.mid1(d4, d4)
         # print(m1.shape)
@@ -281,7 +283,7 @@ class EncodeInput(nn.Module):
         # print(m2.shape)
         m3 = self.mid3(m2, m2)
         '''
-        return d4
+        return res
         # return m3
 
 
@@ -313,7 +315,8 @@ class GeneratorUNet(nn.Module):
             # nn.Conv3d(128, out_channels, 4, padding=1),
             # nn.Tanh(),
             nn.ConvTranspose3d(128, out_channels, 4, 2, 1),
-            nn.Tanh()
+            # nn.Tanh()
+            nn.Sigmoid()
         )
 
     def forward(self, x):
