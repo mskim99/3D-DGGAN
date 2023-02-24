@@ -43,7 +43,7 @@ def calc_gradient_penalty(netD, real_data, fake_data, vol_or_not):
                               create_graph=True, retain_graph=True, only_inputs=True)[0]
     gradients = gradients.view(gradients.size(0), -1)
 
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * 1e-4
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * 1e-6
 
     return gradient_penalty
 
@@ -90,8 +90,8 @@ def train():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volumes"
-    model_name = "saved_models"
+    volume_name = "volumes3"
+    model_name = "saved_models3"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
@@ -263,6 +263,12 @@ def train():
     slice_num = 56
     # w_enc_code = 0.5
     # w_enc_noise = 0.5
+
+    one = torch.tensor(1, dtype=float)
+    mone = one * -1
+    one = one.cuda()
+    mone = mone.cuda()
+
     for epoch in range(opt.epoch, opt.n_epochs):
 
         encoder.train()
@@ -343,6 +349,13 @@ def train():
             # ref_code = encoder(ref_volume)
             # input_volume = ref_code.data
 
+            for p in discriminator_volume.parameters():
+                p.requires_grad = True
+            for p in discriminator_slab.parameters():
+                p.requires_grad = True
+            for p in discriminator_slices.parameters():
+                p.requires_grad = True
+
             # Adversarial ground truths
             valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
             fake = torch.zeros([1, 1, 8, 8, 8], requires_grad=False).cuda()
@@ -363,15 +376,17 @@ def train():
             #  Train Discriminator, only update every disc_update batches
             # ---------------------
             # Real loss
-            '''
-            volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
-            volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
-            volume_noise = volume_noise.cuda()
-            '''
 
             real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
             enc_code = encoder(real_volume_input)
             # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
+
+            '''
+            volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
+            volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
+            volume_noise = volume_noise.cuda()
+            enc_noise = encoder(volume_noise)
+            '''
 
             enc_noise = torch.randn(opt.batch_size * 262144)
             enc_noise = enc_noise.reshape(opt.batch_size, 512, 8, 8, 8)
@@ -389,7 +404,8 @@ def train():
             # DV_loss_fake_volume = criterion_GAN(pred_fake_volume, fake)
 
             # DV_loss = 0.5 * (DV_loss_real_volume + DV_loss_fake_volume)
-            DV_loss = - torch.mean(pred_real_volume) + torch.mean(pred_fake_volume)
+            DV_loss_real = torch.mean(pred_real_volume)
+            DV_loss_fake = torch.mean(pred_fake_volume)
 
             if use_ctsgan:
 
@@ -428,7 +444,8 @@ def train():
                 # DV_loss_fake_slab = criterion_GAN(pred_fake_slab, fake)
 
                 # DSLB_loss = 0.5 * (DV_loss_real_slab + DV_loss_fake_slab)
-                DSLB_loss = - torch.mean(pred_real_slab) + torch.mean(pred_fake_slab)
+                DSLB_loss_real = torch.mean(pred_real_slab)
+                DSLB_loss_fake = torch.mean(pred_fake_slab)
 
                 # Extract slices from volume
                 slices_position = torch.randint(1, 126, (slice_num,))
@@ -459,12 +476,16 @@ def train():
                 # DV_loss_fake_slices = criterion_GAN(pred_fake_slices, fake)
 
                 # DSLC_loss = 0.5 * (DV_loss_real_slices + DV_loss_fake_slices)
-                DSLC_loss = - torch.mean(pred_real_slices) + torch.mean(pred_fake_slices)
+                DSLC_loss_real = torch.mean(pred_real_slices)
+                DSLC_loss_fake = torch.mean(pred_fake_slices)
 
-                Disc_loss = DV_loss + DSLB_loss + DSLC_loss
-                Disc_loss = Disc_loss / 3.
+                Disc_loss_real = DV_loss_real + DSLB_loss_real + DSLC_loss_real
+                Disc_loss_fake = DV_loss_fake + DSLB_loss_fake + DSLC_loss_fake
+                Disc_loss_real = Disc_loss_real / 3.
+                Disc_loss_fake = Disc_loss_fake / 3.
             else:
-                Disc_loss = DV_loss
+                Disc_loss_real = DV_loss_real
+                Disc_loss_fake = DV_loss_fake
 
             # D_loss = 5. * D_loss
 
@@ -488,7 +509,7 @@ def train():
             cont_loss = cont_loss / 126.
 
             weight_recon = 1.
-            D_loss = Disc_loss + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item()
+            D_loss = - Disc_loss_real + Disc_loss_fake # + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item()
 
             gp_vol = calc_gradient_penalty(discriminator_volume, real_volume.data, fake_volume.data, vol_or_not=True)
             gp_slab = calc_gradient_penalty(discriminator_slab, real_volume_slab_tot.data, fake_volume_slab_tot.data, vol_or_not=False)
@@ -496,8 +517,7 @@ def train():
             gp_value = (gp_vol + gp_slab + gp_slice) / 3.
             # gp_value = gp_vol
 
-            # print(pred_real_volume.shape)
-            # print(pred_fake_volume.shape)
+            D_loss = D_loss + gp_value.item()
 
             d_real_acu_volume = torch.ge(pred_real_volume.squeeze(), 0.5).float()
             d_fake_acu_volume = torch.le(pred_fake_volume.squeeze(), 0.5).float()
@@ -531,8 +551,9 @@ def train():
                     optimizer_DSL.zero_grad()
                     optimizer_DSC.zero_grad()
                     '''
-                D_loss.backward()
 
+                Disc_loss_real.backward(mone)
+                Disc_loss_fake.backward(one)
                 gp_value.backward() # Gradient Penalty (WGAN-GP)
                 optimizer_DV.step()
                 '''
@@ -541,6 +562,15 @@ def train():
                     optimizer_DSC.step()
                     '''
                 discriminator_update = 'True'
+            else:
+                discriminator_update = 'False'
+
+            for p in discriminator_volume.parameters():
+                p.requires_grad = False
+            for p in discriminator_slab.parameters():
+                p.requires_grad = False
+            for p in discriminator_slices.parameters():
+                p.requires_grad = False
 
             # ------------------
             #  Train Generators
@@ -567,6 +597,13 @@ def train():
             real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
             enc_code = encoder(real_volume_input)
             # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
+
+            '''
+            volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
+            volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
+            volume_noise = volume_noise.cuda()
+            enc_noise = encoder(volume_noise)
+            '''
 
             enc_noise = torch.randn(opt.batch_size * 262144)
             enc_noise = enc_noise.reshape(opt.batch_size, 512, 8, 8, 8)
@@ -628,8 +665,7 @@ def train():
                 GAN_loss = (GV_loss + GSLB_loss + GSLC_loss) / 3.
 
             else:
-                GAN_loss = -torch.mean(discriminator_volume(fake_volume))
-
+                GAN_loss = - torch.mean(discriminator_volume(fake_volume))
 
 
             cont_loss = 0.0
@@ -665,12 +701,14 @@ def train():
             iou_loss = sum(sample_iou) / len(sample_iou)
             iou_loss = 1. - iou_loss
 
-            weight_recon = 1.
+            weight_recon = torch.zeros(1, requires_grad=True)
+            weight_recon = weight_recon.cuda()
             weight_recon_min = 0.
+            recon_loss = 0.
             loss_dec_state = LOSS_DEC.NOT_USE
             # iou_loss = iou_loss - 0.5
             if loss_dec_state is LOSS_DEC.NOT_USE:
-                G_loss = GAN_loss + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
+                recon_loss = weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
             elif loss_dec_state is LOSS_DEC.STEP:
                 step_epoch = 10.
                 total_level = round(opt.n_epochs / step_epoch)
@@ -678,21 +716,20 @@ def train():
                 dec_factor = weight_recon / total_level * cur_level
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
-                else:
-                    G_loss = GAN_loss
+                    recon_loss = weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
             elif loss_dec_state is LOSS_DEC.SMOOTH:
                 dec_factor = weight_recon / opt.n_epochs * epoch
                 weight_recon = weight_recon - dec_factor
                 if weight_recon > weight_recon_min:
-                    G_loss = GAN_loss + weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
-                else:
-                    G_loss = GAN_loss
+                    recon_loss = weight_recon * loss_dist.item() + weight_recon * loss_uqi.item() + weight_recon * cont_loss.item() # + weight_recon * generator_loss
             else:
                 print('Error Occurred : Decrement State is not defined')
                 exit(-1)
 
-            G_loss.backward()
+            G_loss = GAN_loss + recon_loss
+
+            GAN_loss.backward(mone)
+            recon_loss.backward()
             optimizer_G.step()
             # optimizer_E.step()
 
@@ -792,5 +829,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '2'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     train()
