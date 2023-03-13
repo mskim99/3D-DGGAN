@@ -59,7 +59,7 @@ def train():
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=410, help="number of epochs of training")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
-    parser.add_argument("--batch_size", type=int, default=2, help="size of the batches")
+    parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
     parser.add_argument("--elr", type=float, default=2e-6, help="adam: encoder learning rate") # Default : 2e-5
     parser.add_argument("--glr", type=float, default=2e-5, help="adam: generator learning rate") # Default : 2e-5
     parser.add_argument("--dlr", type=float, default=2e-5, help="adam: discriminator learning rate") # Default : 2e-5
@@ -168,7 +168,7 @@ def train():
         '''
 
     dataloader = DataLoader(
-        CTDataset("./data/orig/train/", None),
+        CTDataset("./data/liver/", None),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu,
@@ -261,8 +261,6 @@ def train():
     discriminator_update = 'False'
     slab_size = 28
     slice_num = 56
-    # w_enc_code = 0.5
-    # w_enc_noise = 0.5
     for epoch in range(opt.epoch, opt.n_epochs):
 
         encoder.train()
@@ -317,6 +315,11 @@ def train():
             w_enc_code = w_enc_code.cuda()
             w_enc_noise = w_enc_noise.cuda()
 
+            '''
+            w_enc_code = 0.5
+            w_enc_noise = 0.5
+            '''
+
             # --------------------
             #  Train Discriminator
             # --------------------
@@ -341,11 +344,13 @@ def train():
             # input_volume = ref_code.data
 
             # Adversarial ground truths
+            '''
             valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
             fake = torch.zeros([1, 1, 8, 8, 8], requires_grad=False).cuda()
             # valid = torch.ones([1, 1], requires_grad=False).cuda()
             # fake = torch.zeros([1, 1], requires_grad=False).cuda()
             # (volume_noise.size(0), 1)
+            '''
 
             real_volume = Variable(batch["B"].unsqueeze_(1).type(Tensor))
             real_volume = real_volume / 255.
@@ -360,10 +365,13 @@ def train():
             #  Train Discriminator, only update every disc_update batches
             # ---------------------
             # Real loss
+            real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
             volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
-            enc_code = encoder(volume_noise)
+
+            real_volume_input = 0.1 * real_volume_input + 0.9 * volume_noise
+            enc_code = encoder(real_volume_input)
             enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             enc_noise = torch.randn(opt.batch_size * 262144)
@@ -550,10 +558,13 @@ def train():
             # Adversarial ground truths
             valid = torch.ones([1, 1, 8, 8, 8], requires_grad=False).cuda()
 
+            real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
             volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
-            enc_code = encoder(volume_noise)
+
+            real_volume_input = 0.1 * real_volume_input + 0.9 * volume_noise
+            enc_code = encoder(real_volume_input)
             enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             enc_noise = torch.randn(opt.batch_size * 262144)
@@ -706,8 +717,15 @@ def train():
             fake_volume = generator(input_code)
             fake_volume = torch.clamp(fake_volume, min=0.0, max=1.0)
             '''
+
             real_volume_input = real_volume.reshape(opt.batch_size, 1, 128, 128, 128)
+            volume_noise = torch.rand(opt.batch_size * 128 * 128 * 128)
+            volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
+            volume_noise = volume_noise.cuda()
+
+            real_volume_input = 0.1 * real_volume_input + 0.9 * volume_noise
             ref_code = encoder(real_volume_input)
+
             real_volume_decode = generator(ref_code)
             real_volume_decode = torch.clamp(real_volume_decode, min=0.0, max=1.0)
 
@@ -771,14 +789,16 @@ def train():
         if epoch % opt.sample_interval == 0 and epoch > 0:
             sample_voxel_volumes(epoch, True)
             print('*****volumes sampled*****')
+        '''
         else:
             sample_voxel_volumes(epoch, False)
             print(' *****testing processed*****')
+            '''
 
 
 if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '4'
     train()
