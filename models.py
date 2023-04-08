@@ -253,6 +253,7 @@ class EncodeInput(nn.Module):
         self.down3 = UNetDown(128, 256, normalize=False)
         self.down4 = UNetDown(256, 512, normalize=False)
         self.lffb = LFFB(64)
+        self.tanh = nn.Tanh()
 
         '''
         self.mid1 = UNetMid(1024, 512, dropout=0.2)
@@ -274,6 +275,7 @@ class EncodeInput(nn.Module):
         # print(d3.shape)
         d4 = self.down4(d3)
         # print(d4.shape)
+        # output = self.tanh(d4)
         '''
         m1 = self.mid1(d4, d4)
         # print(m1.shape)
@@ -281,6 +283,7 @@ class EncodeInput(nn.Module):
         # print(m2.shape)
         m3 = self.mid3(m2, m2)
         '''
+        # return output
         return d4
         # return m3
 
