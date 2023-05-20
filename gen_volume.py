@@ -21,11 +21,6 @@ from torch import autograd
 
 def gen_volume():
 
-    class LOSS_DEC(Enum):
-        NOT_USE = 1
-        STEP = 2
-        SMOOTH = 3
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=400, help="epoch to start training from")
     parser.add_argument("--dataset_name", type=str, default="KISTI_volume", help="name of the dataset")
@@ -38,41 +33,31 @@ def gen_volume():
     opt = parser.parse_args()
     print(opt)
 
-    volume_name = "volume_test2"
-    model_name = "model_test2"
+    volume_name = "volumes"
+    model_name = "saved_models"
 
     os.makedirs("%s/%s" % (volume_name, opt.dataset_name), exist_ok=True)
     os.makedirs("%s/%s" % (model_name, opt.dataset_name), exist_ok=True)
 
     cuda = True if torch.cuda.is_available() else False
 
-    use_ctsgan = False
-    use_ctsgan_all = False
+    use_ctsgan = True
+    use_slab = True
+    use_slice = True
 
     # Initialize generator and discriminator
     encoder = EncodeInput()
     generator = GeneratorUNet()
-    discriminator_volume = Discriminator_volume()
-    if use_ctsgan or use_ctsgan_all:
-        discriminator_slab = Discriminator_slab()
-        discriminator_slices = Discriminator_slices()
 
     if cuda:
         encoder = encoder.cuda()
         generator = generator.cuda()
-        discriminator_volume = discriminator_volume.cuda()
-        if use_ctsgan or use_ctsgan_all:
-            discriminator_slab = discriminator_slab.cuda()
-            discriminator_slices = discriminator_slices.cuda()
 
     if opt.epoch != 0:
         # Load pretrained models
-        encoder.load_state_dict(torch.load("%s/encoder_%d.pth" % (model_name, opt.epoch)))
-        generator.load_state_dict(torch.load("%s/generator_%d.pth" % (model_name, opt.epoch)))
-        discriminator_volume.load_state_dict(torch.load("%s/discriminator_volume_%d.pth" % (model_name, opt.epoch)))
-        if use_ctsgan or use_ctsgan_all:
-            discriminator_slab.load_state_dict(torch.load("%s/discriminator_slab_%d.pth" % (model_name, opt.epoch)))
-            discriminator_slices.load_state_dict(torch.load("%s/discriminator_slice_%d.pth" % (model_name, opt.epoch)))
+        encoder.load_state_dict(torch.load("%s/%s/encoder_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
+        generator.load_state_dict(torch.load("%s/%s/generator_%d.pth" % (model_name, opt.dataset_name, opt.epoch)))
+
     else:
         # Initialize weights
         sys.exit('ERROR: There is no weight assigned to that model folder and epoch number')
@@ -88,17 +73,12 @@ def gen_volume():
             # Model inputs
             encoder.eval()
             generator.eval()
-            discriminator_volume.eval()
-            if use_ctsgan or use_ctsgan_all:
-                discriminator_slices.eval()
-                discriminator_slab.eval()
 
-            '''
             volume_noise = torch.rand(opt.batch_size, 128 * 128 * 128)
             volume_noise = volume_noise.reshape(opt.batch_size, 1, 128, 128, 128)
             volume_noise = volume_noise.cuda()
             enc_code = encoder(volume_noise)
-            '''
+
             # enc_code = torch.clamp(enc_code, min=0.0, max=1.0)
 
             enc_noise = torch.randn(opt.batch_size * 262144)
@@ -142,5 +122,5 @@ if __name__ == '__main__':
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '4'
     gen_volume()
