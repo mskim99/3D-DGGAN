@@ -1,2 +1,2 @@
-# CT-SGAN
-Pytorch implementation of CT-VSGAN, a 3D volume-to-volume generative adversarial network which is extension of CT-SGAN
+# 3D-DGGAN
+3D-DGGAN: Data-Guided Generative Adversarial Network for High Convergence Rates in Medical Image Generation
